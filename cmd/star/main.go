@@ -17,9 +17,27 @@ func main() {
 	case "init":
 		err := os.Mkdir(".star", 0755)
 		if err != nil {
+			if os.IsExist(err) {
+				fmt.Println(".star is already initialized")
+				return
+			}
 			fmt.Println("Error creating .star directory:", err)
 			return
 		}
+		slozky := []string{".star/objects", ".star/commits"}
+		for _, slozka := range slozky {
+			err := os.Mkdir(slozka, 0755)
+			if err != nil {
+				fmt.Println("Error creating directory:", err)
+				return
+			}
+		}
+		error := os.WriteFile(".star/HEAD", []byte(""), 0644)
+		if error != nil {
+			fmt.Println("Error creating HEAD file:", error)
+			return
+		}
+
 		fmt.Println("Initialized empty star repository in .star directory")
 	case "help":
 		fmt.Println("Available commands: help, version, init")
