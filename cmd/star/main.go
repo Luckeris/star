@@ -1,9 +1,19 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 )
+
+type IndexEntry struct {
+	Path    string       `json:"path"`
+	Hash    string       `json:"hash"`
+	Size    int64        `json:"size"`
+	ModTime time.Time    `json:"modtime"`
+	Entries []IndexEntry `json:"entries"`
+}
 
 func main() {
 
@@ -39,6 +49,18 @@ func main() {
 		}
 
 		fmt.Println("Initialized empty star repository in .star directory")
+		mujIndex := IndexEntry{}
+		data, err := json.Marshal(mujIndex)
+		if err != nil {
+			fmt.Println("Error creating index file:", err)
+			return
+		}
+		err = os.WriteFile(".star/index", data, 0644)
+		if err != nil {
+			fmt.Println("Error creating index file:", err)
+			return
+		}
+
 	case "help":
 		fmt.Println("Available commands: help, version, init")
 	case "version":
