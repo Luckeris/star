@@ -34,7 +34,7 @@ func main() {
 	// Ensure the user provides at least one command
 	if len(os.Args) < 2 {
 		fmt.Println("Usage: star <command>")
-		fmt.Println("Available commands: help, version, init, hash-object, add, commit")
+		fmt.Println("Available commands: help, version, init, hash-object, add, commit, log, status")
 		return
 	}
 
@@ -87,7 +87,7 @@ func main() {
 		fmt.Println("Initialized empty star repository in .star directory")
 
 	case "help":
-		fmt.Println("Available commands: help, version, init, hash-object, add, commit")
+		fmt.Println("Available commands: help, version, init, hash-object, add, commit, log, status")
 
 	case "version":
 		fmt.Println("star v0.1.0")
@@ -166,16 +166,27 @@ func main() {
 			fmt.Println("Error getting file info:", err)
 			return
 		}
-
-		// 5. Append the new entry to the index
-		novyZaznam := IndexEntry{
-			Path:    path,
-			Hash:    hexString,
-			Size:    info.Size(),
-			ModTime: info.ModTime(),
+		nalezeno := false
+		for i, entry := range mujIndex.Entries {
+			if entry.Path == path {
+				// Update existing entry
+				mujIndex.Entries[i].Hash = hexString
+				mujIndex.Entries[i].Size = info.Size()
+				mujIndex.Entries[i].ModTime = info.ModTime()
+				nalezeno = true
+				break
+			}
 		}
-		mujIndex.Entries = append(mujIndex.Entries, novyZaznam)
-
+		if !nalezeno {
+			// 5. Append the new entry to the index
+			novyZaznam := IndexEntry{
+				Path:    path,
+				Hash:    hexString,
+				Size:    info.Size(),
+				ModTime: info.ModTime(),
+			}
+			mujIndex.Entries = append(mujIndex.Entries, novyZaznam)
+		}
 		// 6. Save the updated index back to disk
 		updatedIndexData, err := json.Marshal(mujIndex)
 		if err != nil {
@@ -297,6 +308,32 @@ func main() {
 
 			commitHash = commitData.Parent
 		}
+
+	case "status":
+		// Read the index.json file to get the list of tracked files
+		indexData, err := os.ReadFile(".star/index.json")
+		if err != nil {
+			fmt.Println("Error reading index file:", err)
+			return
+		}
+
+		mujIndex := Index{}
+		err = json.Unmarshal(indexData, &mujIndex)
+		if err != nil {
+			fmt.Println("Error unmarshaling index file:", err)
+			return
+		}
+
+		if len(mujIndex.Entries) == 0 {
+			fmt.Println("No files are currently tracked.")
+			return
+		}
+
+		fmt.Printf("Tracked files:\n")
+		for _, entry := range mujIndex.Entries {
+			fmt.Printf(" added: %s\n", entry.Path)
+		}
+
 	default:
 		fmt.Println("Unknown command:", command)
 	}
