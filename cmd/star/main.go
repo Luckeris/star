@@ -88,9 +88,9 @@ func handleInit() {
 	}
 
 	// init subdirectories
-	slozky := []string{".star/objects", ".star/commits"}
+	slozky := []string{".star/objects", ".star/commits", ".star/refs", ".star/refs/heads"}
 	for _, slozka := range slozky {
-		err := os.Mkdir(slozka, 0755)
+		err := os.MkdirAll(slozka, 0755)
 		if err != nil {
 			fmt.Println("Error creating directory:", err)
 			return
@@ -98,7 +98,7 @@ func handleInit() {
 	}
 
 	// create empty HEAD
-	error := os.WriteFile(".star/HEAD", []byte(""), 0644)
+	error := os.WriteFile(".star/HEAD", []byte("ref: refs/heads/main"), 0644)
 	if error != nil {
 		fmt.Println("Error creating HEAD file:", error)
 		return
@@ -244,13 +244,12 @@ func handleCommit(zprava string) {
 		return
 	}
 
-	// get parent commit
-	nactenaData, err := os.ReadFile(".star/HEAD")
+	// get parent commit using helper
+	rodic, refPath, err := resolveHead()
 	if err != nil {
-		fmt.Println("Error reading HEAD file:", err)
+		fmt.Println("Error resolving HEAD:", err)
 		return
 	}
-	rodic := string(nactenaData)
 
 	// create commit struct
 	novyCommit := Commit{
@@ -277,11 +276,19 @@ func handleCommit(zprava string) {
 		return
 	}
 
-	// update HEAD
-	err = os.WriteFile(".star/HEAD", []byte(hexString), 0644)
-	if err != nil {
-		fmt.Println("Error updating HEAD file:", err)
-		return
+	// update branch ref OR detached HEAD
+	if refPath != "" {
+		err = os.WriteFile(refPath, []byte(hexString), 0644)
+		if err != nil {
+			fmt.Println("Error updating branch reference:", err)
+			return
+		}
+	} else {
+		err = os.WriteFile(".star/HEAD", []byte(hexString), 0644)
+		if err != nil {
+			fmt.Println("Error updating HEAD file:", err)
+			return
+		}
 	}
 
 	// clear index after commit
@@ -295,14 +302,12 @@ func handleCommit(zprava string) {
 }
 
 func handleLog() {
-	// get latest commit
-	headData, err := os.ReadFile(".star/HEAD")
+	// get latest commit using helper
+	commitHash, _, err := resolveHead()
 	if err != nil {
-		fmt.Println("Error reading HEAD file:", err)
+		fmt.Println("Error resolving HEAD:", err)
 		return
 	}
-
-	commitHash := string(headData)
 
 	if commitHash == "" {
 		fmt.Println("No commits found.")
@@ -363,4 +368,30 @@ func handleStatus() {
 	for _, entry := range mujIndex.Entries {
 		fmt.Printf("  added: %s\n", entry.Path)
 	}
+}
+
+// resolve current commit hash and reference path (if on a branch)
+
+func resolveHead() (string, string, error) {
+	headData, err := os.ReadFile(".star/HEAD")
+	if err != nil {
+		return "", "", err
+	}
+	headContent := string(headData)
+
+	// check if HEAD points to a branch (ref) or a commit hash
+	if len(headContent) > 5 && headContent[:5] == "ref: " {
+		refPath := filepath.Join(".star", headContent[5:])
+		refData, err := os.ReadFile(refPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return "", refPath, nil // branch exists but no commit yet
+			}
+			return "", "", err
+		}
+		return string(refData), refPath, nil
+	}
+
+	// detached HEAD (points directly to a hash)
+	return headContent, "", nil
 }
