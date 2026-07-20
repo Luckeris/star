@@ -256,6 +256,47 @@ func main() {
 
 		fmt.Printf("Created commit %s\n", hexString)
 
+	case "log":
+		// Read the HEAD file to get the latest commit hash
+		headData, err := os.ReadFile(".star/HEAD")
+		if err != nil {
+			fmt.Println("Error reading HEAD file:", err)
+			return
+		}
+
+		commitHash := string(headData)
+
+		if commitHash == "" {
+			fmt.Println("No commits found.")
+			return
+		}
+
+		for {
+			if commitHash == "" {
+				break
+			}
+			commitPath := filepath.Join(".star", "commits", commitHash+".json")
+
+			commitFile, err := os.ReadFile(commitPath)
+			if err != nil {
+				fmt.Printf("Error reading commit file for hash %s: %v\n", commitHash, err)
+				return
+			}
+
+			commitData := Commit{}
+			err = json.Unmarshal(commitFile, &commitData)
+			if err != nil {
+				fmt.Printf("Error unmarshaling commit data for hash %s: %v\n", commitHash, err)
+				return
+			}
+
+			fmt.Printf("Commit: %s\n", commitHash)
+			fmt.Printf("Timestamp: %s\n", commitData.Timestamp)
+			fmt.Printf("Message: %s\n", commitData.Message)
+			fmt.Println("----------------------------------------")
+
+			commitHash = commitData.Parent
+		}
 	default:
 		fmt.Println("Unknown command:", command)
 	}
