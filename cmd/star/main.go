@@ -65,6 +65,12 @@ func main() {
 		handleLog()
 	case "status":
 		handleStatus()
+	case "checkout":
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: star checkout <branch_or_commit-hash>")
+			return
+		}
+		handleCheckout(os.Args[2])
 	default:
 		fmt.Println("Unknown command:", command)
 	}
@@ -72,7 +78,7 @@ func main() {
 
 func printUsage() {
 	fmt.Println("Usage: star <command>")
-	fmt.Println("Available commands: help, version, init, hash-object, add, commit, log, status")
+	fmt.Println("Available commands: help, version, init, hash-object, add, commit, log, status, checkout")
 }
 
 func handleInit() {
@@ -394,4 +400,71 @@ func resolveHead() (string, string, error) {
 
 	// detached HEAD (points directly to a hash)
 	return headContent, "", nil
+}
+
+func handleCheckout(target string) {
+	var commitHash string
+	isBranch := false
+
+	// 1. resolve if target is a branch or a hash
+	branchPath := filepath.Join(".star", "refs", "heads", target)
+	if _, err := os.Stat(branchPath); err == nil {
+		isBranch = true
+		hashData, err := os.ReadFile(branchPath)
+		if err != nil {
+			fmt.Println("Error reading branch file:", err)
+			return
+		}
+		commitHash = string(hashData)
+	} else {
+		// target is not a branch, assume it's a commit hash
+		commitHash = target
+	}
+
+	// 2. read commit data
+	commitPath := filepath.Join(".star", "commits", commitHash+".json")
+	commitFile, err := os.ReadFile(commitPath)
+	if err != nil {
+		fmt.Printf("Error: Commit %s not found\n", target)
+		return
+	}
+
+	commitData := Commit{}
+	err = json.Unmarshal(commitFile, &commitData)
+	if err != nil {
+		fmt.Println("Error reading commit data:", err)
+		return
+	}
+
+	// 3. restore files to working directory
+	for _, file := range commitData.Files {
+		objectPath := filepath.Join(".star", "objects", file.Hash)
+		objectData, err := os.ReadFile(objectPath)
+		if err != nil {
+			fmt.Printf("Error reading object for file %s: %v\n", file.Path, err)
+			continue
+		}
+
+		// ensure parent directories exist
+		os.MkdirAll(filepath.Dir(file.Path), 0755)
+
+		err = os.WriteFile(file.Path, objectData, 0644)
+		if err != nil {
+			fmt.Printf("Error restoring file %s: %v\n", file.Path, err)
+		}
+	}
+
+	// 4. update index to match the checked-out state
+	novyIndex := Index{Entries: commitData.Files}
+	indexData, _ := json.MarshalIndent(novyIndex, "", "  ")
+	os.WriteFile(".star/index.json", indexData, 0644)
+
+	// 5. update HEAD
+	if isBranch {
+		os.WriteFile(".star/HEAD", []byte("ref: refs/heads/"+target), 0644)
+		fmt.Printf("Switched to branch '%s'\n", target)
+	} else {
+		os.WriteFile(".star/HEAD", []byte(commitHash), 0644)
+		fmt.Printf("HEAD detached at %s\n", commitHash)
+	}
 }
