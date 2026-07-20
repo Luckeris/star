@@ -24,7 +24,7 @@ Star is my attempt to build a cleaner command-line experience for common tasks w
 
 ## Current Status
 
-🚧 **Work in progress**  
+**Work in progress**  
 This project is actively being developed and improved over time.
 
 ---
@@ -36,8 +36,6 @@ This project is actively being developed and improved over time.
 - Basic branch and status commands
 - Easier remote setup helpers
 - Better command help and error messages
-
-> Feature list may change as the project evolves.
 
 ---
 
@@ -55,25 +53,13 @@ This project is actively being developed and improved over time.
 
 ```bash
 git clone https://github.com/Luckeris/star.git
-cd star
+cd star/cmd/star
 ```
 
-### 2) Build the project
+### 2) Use the commands
 
 ```bash
-go build -o star .
-```
-
-### 3) Run it
-
-```bash
-./star
-```
-
-On Windows:
-
-```powershell
-star.exe
+go run . <command>
 ```
 
 ---
@@ -86,23 +72,6 @@ If you are contributing or testing locally:
 go run .
 ```
 
-Format code:
-
-```bash
-go fmt ./...
-```
-
----
-
-## Roadmap
-
-- [ ] Add stable command structure
-- [ ] Improve CLI help output
-- [ ] Add more Git-like workflow commands
-- [ ] Improve error handling and validation
-- [ ] Add tests for core command behavior
-- [ ] Write usage examples for each command
-
 ---
 
 ## Contributing
@@ -110,6 +79,7 @@ go fmt ./...
 Feedback, issues, and suggestions are welcome.
 
 If you try Star and something feels confusing or broken, please open an issue:
+
 - what command you ran
 - what you expected
 - what happened instead
