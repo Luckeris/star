@@ -10,7 +10,6 @@ import (
 	"time"
 )
 
-// IndexEntry represents a single file tracked in the repository
 type IndexEntry struct {
 	Path    string    `json:"path"`
 	Hash    string    `json:"hash"`
@@ -18,7 +17,6 @@ type IndexEntry struct {
 	ModTime time.Time `json:"modtime"`
 }
 
-// Index represents the entire index.json structure
 type Index struct {
 	Entries []IndexEntry `json:"entries"`
 }
@@ -31,10 +29,8 @@ type Commit struct {
 }
 
 func main() {
-	// Ensure the user provides at least one command
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: star <command>")
-		fmt.Println("Available commands: help, version, init, hash-object, add, commit, log, status")
+		printUsage()
 		return
 	}
 
@@ -42,299 +38,329 @@ func main() {
 
 	switch command {
 	case "init":
-		// 1. Create the base .star directory
-		err := os.Mkdir(".star", 0755)
-		if err != nil {
-			if os.IsExist(err) {
-				fmt.Println(".star is already initialized")
-				return
-			}
-			fmt.Println("Error creating .star directory:", err)
-			return
-		}
-
-		// 2. Create objects and commits subdirectories
-		slozky := []string{".star/objects", ".star/commits"}
-		for _, slozka := range slozky {
-			err := os.Mkdir(slozka, 0755)
-			if err != nil {
-				fmt.Println("Error creating directory:", err)
-				return
-			}
-		}
-
-		// 3. Create an empty HEAD file
-		error := os.WriteFile(".star/HEAD", []byte(""), 0644)
-		if error != nil {
-			fmt.Println("Error creating HEAD file:", error)
-			return
-		}
-
-		// 4. Initialize an empty index.json
-		mujIndex := Index{Entries: []IndexEntry{}}
-		data, err := json.Marshal(mujIndex)
-		if err != nil {
-			fmt.Println("Error creating index file:", err)
-			return
-		}
-
-		err = os.WriteFile(".star/index.json", data, 0644)
-		if err != nil {
-			fmt.Println("Error creating index file:", err)
-			return
-		}
-
-		fmt.Println("Initialized empty star repository in .star directory")
-
+		handleInit()
 	case "help":
-		fmt.Println("Available commands: help, version, init, hash-object, add, commit, log, status")
-
+		printUsage()
 	case "version":
 		fmt.Println("star v0.1.0")
-
 	case "hash-object":
-		// Validate argument count
 		if len(os.Args) < 3 {
 			fmt.Println("Usage: star hash-object <file>")
 			return
 		}
-		path := os.Args[2]
-
-		// 1. Read the target file
-		file, err := os.ReadFile(path)
-		if err != nil {
-			fmt.Println("Error reading file:", err)
-			return
-		}
-
-		// 2. Calculate SHA-256 hash
-		hash := sha256.Sum256(file)
-		hexString := hex.EncodeToString(hash[:])
-		fmt.Println(hexString)
-
-		// 3. Write the file content to .star/objects/<hash>
-		objectPath := filepath.Join(".star", "objects", hexString)
-		err = os.WriteFile(objectPath, file, 0644)
-		if err != nil {
-			fmt.Println("Error creating object file:", err)
-			return
-		}
-
+		handleHashObject(os.Args[2])
 	case "add":
-		// Validate argument count
 		if len(os.Args) < 3 {
 			fmt.Println("Usage: star add <file>")
 			return
 		}
-
-		// 1. Read and parse the existing index.json
-		indexData, err := os.ReadFile(".star/index.json")
-		if err != nil {
-			fmt.Println("Error reading index file:", err)
-			return
-		}
-
-		mujIndex := Index{}
-		err = json.Unmarshal(indexData, &mujIndex)
-		if err != nil {
-			fmt.Println("Error unmarshaling index file:", err)
-			return
-		}
-
-		// 2. Read the file being added
-		path := os.Args[2]
-		fileData, err := os.ReadFile(path)
-		if err != nil {
-			fmt.Println("Error reading file:", err)
-			return
-		}
-
-		// 3. Calculate hash and save the object (blob)
-		hash := sha256.Sum256(fileData)
-		hexString := hex.EncodeToString(hash[:])
-		objectPath := filepath.Join(".star", "objects", hexString)
-
-		err = os.WriteFile(objectPath, fileData, 0644)
-		if err != nil {
-			fmt.Println("Error creating object file:", err)
-			return
-		}
-
-		// 4. Get file metadata (size, mod time)
-		info, err := os.Stat(path)
-		if err != nil {
-			fmt.Println("Error getting file info:", err)
-			return
-		}
-		nalezeno := false
-		for i, entry := range mujIndex.Entries {
-			if entry.Path == path {
-				// Update existing entry
-				mujIndex.Entries[i].Hash = hexString
-				mujIndex.Entries[i].Size = info.Size()
-				mujIndex.Entries[i].ModTime = info.ModTime()
-				nalezeno = true
-				break
-			}
-		}
-		if !nalezeno {
-			// 5. Append the new entry to the index
-			novyZaznam := IndexEntry{
-				Path:    path,
-				Hash:    hexString,
-				Size:    info.Size(),
-				ModTime: info.ModTime(),
-			}
-			mujIndex.Entries = append(mujIndex.Entries, novyZaznam)
-		}
-		// 6. Save the updated index back to disk
-		updatedIndexData, err := json.Marshal(mujIndex)
-		if err != nil {
-			fmt.Println("Error marshaling updated index:", err)
-			return
-		}
-
-		err = os.WriteFile(".star/index.json", updatedIndexData, 0644)
-		if err != nil {
-			fmt.Println("Error writing updated index file:", err)
-			return
-		}
-
-		fmt.Printf("Added %s to index\n", path)
-
-	// 7. Commit your code with a custom message
+		handleAdd(os.Args[2])
 	case "commit":
 		if len(os.Args) < 3 {
 			fmt.Println("Usage: star commit <message>")
 			return
 		}
-		// read the commit message from the command line arguments and the time
-		zprava := os.Args[2]
-		cas := time.Now()
-
-		//read the index.json file to get the list of files to commit
-		indexData, err := os.ReadFile(".star/index.json")
-		if err != nil {
-			fmt.Println("Error reading index file:", err)
-			return
-		}
-
-		// unmarshal the index data into an Index struct
-		mujIndex := Index{}
-		err = json.Unmarshal(indexData, &mujIndex)
-		if err != nil {
-			fmt.Println("Error unmarshaling index file:", err)
-			return
-		}
-		nactenaData, err := os.ReadFile(".star/HEAD")
-		if err != nil {
-			fmt.Println("Error reading HEAD file:", err)
-			return
-		}
-		rodic := string(nactenaData)
-
-		//create a new scruct for the commit with the info gained
-		novyCommit := Commit{
-			Message:   zprava,
-			Timestamp: cas,
-			Files:     mujIndex.Entries,
-			Parent:    rodic,
-		}
-
-		//marshal, save and hash the commit data, then save it to the commits directory and update the HEAD file
-		commitData, err := json.Marshal(novyCommit)
-		if err != nil {
-			fmt.Println("Error marshaling commit:", err)
-			return
-		}
-
-		hash := sha256.Sum256(commitData)
-		hexString := hex.EncodeToString(hash[:])
-		commitPath := filepath.Join(".star", "commits", hexString+".json")
-
-		// Save the commit data to the commits directory
-		err = os.WriteFile(commitPath, commitData, 0644)
-		if err != nil {
-			fmt.Println("Error creating commit file:", err)
-			return
-		}
-		// Update the HEAD file to point to the new commit
-		err = os.WriteFile(".star/HEAD", []byte(hexString), 0644)
-		if err != nil {
-			fmt.Println("Error updating HEAD file:", err)
-			return
-		}
-
-		fmt.Printf("Created commit %s\n", hexString)
-
+		handleCommit(os.Args[2])
 	case "log":
-		// Read the HEAD file to get the latest commit hash
-		headData, err := os.ReadFile(".star/HEAD")
-		if err != nil {
-			fmt.Println("Error reading HEAD file:", err)
-			return
-		}
-
-		commitHash := string(headData)
-
-		if commitHash == "" {
-			fmt.Println("No commits found.")
-			return
-		}
-
-		for {
-			if commitHash == "" {
-				break
-			}
-			commitPath := filepath.Join(".star", "commits", commitHash+".json")
-
-			commitFile, err := os.ReadFile(commitPath)
-			if err != nil {
-				fmt.Printf("Error reading commit file for hash %s: %v\n", commitHash, err)
-				return
-			}
-
-			commitData := Commit{}
-			err = json.Unmarshal(commitFile, &commitData)
-			if err != nil {
-				fmt.Printf("Error unmarshaling commit data for hash %s: %v\n", commitHash, err)
-				return
-			}
-
-			fmt.Printf("Commit: %s\n", commitHash)
-			fmt.Printf("Timestamp: %s\n", commitData.Timestamp)
-			fmt.Printf("Message: %s\n", commitData.Message)
-			fmt.Println("----------------------------------------")
-
-			commitHash = commitData.Parent
-		}
-
+		handleLog()
 	case "status":
-		// Read the index.json file to get the list of tracked files
-		indexData, err := os.ReadFile(".star/index.json")
-		if err != nil {
-			fmt.Println("Error reading index file:", err)
-			return
-		}
-
-		mujIndex := Index{}
-		err = json.Unmarshal(indexData, &mujIndex)
-		if err != nil {
-			fmt.Println("Error unmarshaling index file:", err)
-			return
-		}
-
-		if len(mujIndex.Entries) == 0 {
-			fmt.Println("No files are currently tracked.")
-			return
-		}
-
-		fmt.Printf("Tracked files:\n")
-		for _, entry := range mujIndex.Entries {
-			fmt.Printf(" added: %s\n", entry.Path)
-		}
-
+		handleStatus()
 	default:
 		fmt.Println("Unknown command:", command)
+	}
+}
+
+func printUsage() {
+	fmt.Println("Usage: star <command>")
+	fmt.Println("Available commands: help, version, init, hash-object, add, commit, log, status")
+}
+
+func handleInit() {
+	// init base directory
+	err := os.Mkdir(".star", 0755)
+	if err != nil {
+		if os.IsExist(err) {
+			fmt.Println(".star is already initialized")
+			return
+		}
+		fmt.Println("Error creating .star directory:", err)
+		return
+	}
+
+	// init subdirectories
+	slozky := []string{".star/objects", ".star/commits"}
+	for _, slozka := range slozky {
+		err := os.Mkdir(slozka, 0755)
+		if err != nil {
+			fmt.Println("Error creating directory:", err)
+			return
+		}
+	}
+
+	// create empty HEAD
+	error := os.WriteFile(".star/HEAD", []byte(""), 0644)
+	if error != nil {
+		fmt.Println("Error creating HEAD file:", error)
+		return
+	}
+
+	// init empty index
+	mujIndex := Index{Entries: []IndexEntry{}}
+	data, err := json.Marshal(mujIndex)
+	if err != nil {
+		fmt.Println("Error creating index file:", err)
+		return
+	}
+
+	err = os.WriteFile(".star/index.json", data, 0644)
+	if err != nil {
+		fmt.Println("Error creating index file:", err)
+		return
+	}
+
+	fmt.Println("Initialized empty star repository in .star directory")
+}
+
+func handleHashObject(path string) {
+	// read target file
+	file, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Println("Error reading file:", err)
+		return
+	}
+
+	// calc hash
+	hash := sha256.Sum256(file)
+	hexString := hex.EncodeToString(hash[:])
+	fmt.Println(hexString)
+
+	// save object
+	objectPath := filepath.Join(".star", "objects", hexString)
+	err = os.WriteFile(objectPath, file, 0644)
+	if err != nil {
+		fmt.Println("Error creating object file:", err)
+		return
+	}
+}
+
+func handleAdd(path string) {
+	// read existing index
+	indexData, err := os.ReadFile(".star/index.json")
+	if err != nil {
+		fmt.Println("Error reading index file:", err)
+		return
+	}
+
+	mujIndex := Index{}
+	err = json.Unmarshal(indexData, &mujIndex)
+	if err != nil {
+		fmt.Println("Error unmarshaling index file:", err)
+		return
+	}
+
+	// read target file
+	fileData, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Println("Error reading file:", err)
+		return
+	}
+
+	// save blob object
+	hash := sha256.Sum256(fileData)
+	hexString := hex.EncodeToString(hash[:])
+	objectPath := filepath.Join(".star", "objects", hexString)
+
+	err = os.WriteFile(objectPath, fileData, 0644)
+	if err != nil {
+		fmt.Println("Error creating object file:", err)
+		return
+	}
+
+	// get file metadata
+	info, err := os.Stat(path)
+	if err != nil {
+		fmt.Println("Error getting file info:", err)
+		return
+	}
+
+	// check for duplicates
+	nalezeno := false
+	for i, entry := range mujIndex.Entries {
+		if entry.Path == path {
+			mujIndex.Entries[i].Hash = hexString
+			mujIndex.Entries[i].Size = info.Size()
+			mujIndex.Entries[i].ModTime = info.ModTime()
+			nalezeno = true
+			break
+		}
+	}
+
+	// append new entry
+	if !nalezeno {
+		novyZaznam := IndexEntry{
+			Path:    path,
+			Hash:    hexString,
+			Size:    info.Size(),
+			ModTime: info.ModTime(),
+		}
+		mujIndex.Entries = append(mujIndex.Entries, novyZaznam)
+	}
+
+	// save updated index
+	updatedIndexData, err := json.MarshalIndent(mujIndex, "", "  ")
+	if err != nil {
+		fmt.Println("Error marshaling updated index:", err)
+		return
+	}
+
+	err = os.WriteFile(".star/index.json", updatedIndexData, 0644)
+	if err != nil {
+		fmt.Println("Error writing updated index file:", err)
+		return
+	}
+
+	fmt.Printf("Added %s to index\n", path)
+}
+
+func handleCommit(zprava string) {
+	cas := time.Now()
+
+	// read index
+	indexData, err := os.ReadFile(".star/index.json")
+	if err != nil {
+		fmt.Println("Error reading index file:", err)
+		return
+	}
+
+	mujIndex := Index{}
+	err = json.Unmarshal(indexData, &mujIndex)
+	if err != nil {
+		fmt.Println("Error unmarshaling index file:", err)
+		return
+	}
+
+	if len(mujIndex.Entries) == 0 {
+		fmt.Println("Nothing to commit (index is empty).")
+		return
+	}
+
+	// get parent commit
+	nactenaData, err := os.ReadFile(".star/HEAD")
+	if err != nil {
+		fmt.Println("Error reading HEAD file:", err)
+		return
+	}
+	rodic := string(nactenaData)
+
+	// create commit struct
+	novyCommit := Commit{
+		Message:   zprava,
+		Timestamp: cas,
+		Files:     mujIndex.Entries,
+		Parent:    rodic,
+	}
+
+	// save commit object
+	commitData, err := json.MarshalIndent(novyCommit, "", "  ")
+	if err != nil {
+		fmt.Println("Error marshaling commit:", err)
+		return
+	}
+
+	hash := sha256.Sum256(commitData)
+	hexString := hex.EncodeToString(hash[:])
+	commitPath := filepath.Join(".star", "commits", hexString+".json")
+
+	err = os.WriteFile(commitPath, commitData, 0644)
+	if err != nil {
+		fmt.Println("Error creating commit file:", err)
+		return
+	}
+
+	// update HEAD
+	err = os.WriteFile(".star/HEAD", []byte(hexString), 0644)
+	if err != nil {
+		fmt.Println("Error updating HEAD file:", err)
+		return
+	}
+
+	// clear index after commit
+	prazdnyIndex := Index{Entries: []IndexEntry{}}
+	vycistenyData, err := json.Marshal(prazdnyIndex)
+	if err == nil {
+		os.WriteFile(".star/index.json", vycistenyData, 0644)
+	}
+
+	fmt.Printf("Created commit %s\n", hexString)
+}
+
+func handleLog() {
+	// get latest commit
+	headData, err := os.ReadFile(".star/HEAD")
+	if err != nil {
+		fmt.Println("Error reading HEAD file:", err)
+		return
+	}
+
+	commitHash := string(headData)
+
+	if commitHash == "" {
+		fmt.Println("No commits found.")
+		return
+	}
+
+	// traverse history
+	for {
+		if commitHash == "" {
+			break
+		}
+		commitPath := filepath.Join(".star", "commits", commitHash+".json")
+
+		commitFile, err := os.ReadFile(commitPath)
+		if err != nil {
+			fmt.Printf("Error reading commit file for hash %s: %v\n", commitHash, err)
+			return
+		}
+
+		commitData := Commit{}
+		err = json.Unmarshal(commitFile, &commitData)
+		if err != nil {
+			fmt.Printf("Error unmarshaling commit data for hash %s: %v\n", commitHash, err)
+			return
+		}
+
+		fmt.Printf("Commit: %s\n", commitHash)
+		fmt.Printf("Timestamp: %s\n", commitData.Timestamp)
+		fmt.Printf("Message: %s\n", commitData.Message)
+		fmt.Println("----------------------------------------")
+
+		commitHash = commitData.Parent
+	}
+}
+
+func handleStatus() {
+	// read index
+	indexData, err := os.ReadFile(".star/index.json")
+	if err != nil {
+		fmt.Println("Error reading index file:", err)
+		return
+	}
+
+	mujIndex := Index{}
+	err = json.Unmarshal(indexData, &mujIndex)
+	if err != nil {
+		fmt.Println("Error unmarshaling index file:", err)
+		return
+	}
+
+	if len(mujIndex.Entries) == 0 {
+		fmt.Println("No files are currently tracked (index is empty).")
+		return
+	}
+
+	// print tracked files
+	fmt.Printf("Tracked files:\n")
+	for _, entry := range mujIndex.Entries {
+		fmt.Printf("  added: %s\n", entry.Path)
 	}
 }
