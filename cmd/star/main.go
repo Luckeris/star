@@ -23,11 +23,18 @@ type Index struct {
 	Entries []IndexEntry `json:"entries"`
 }
 
+type Commit struct {
+	Message   string       `json:"message"`
+	Timestamp time.Time    `json:"timestamp"`
+	Files     []IndexEntry `json:"files"`
+	Parent    string       `json:"parent"`
+}
+
 func main() {
 	// Ensure the user provides at least one command
 	if len(os.Args) < 2 {
 		fmt.Println("Usage: star <command>")
-		fmt.Println("Available commands: help, version, init, hash-object, add")
+		fmt.Println("Available commands: help, version, init, hash-object, add, commit")
 		return
 	}
 
@@ -80,7 +87,7 @@ func main() {
 		fmt.Println("Initialized empty star repository in .star directory")
 
 	case "help":
-		fmt.Println("Available commands: help, version, init, hash-object, add")
+		fmt.Println("Available commands: help, version, init, hash-object, add, commit")
 
 	case "version":
 		fmt.Println("star v0.1.0")
@@ -183,6 +190,71 @@ func main() {
 		}
 
 		fmt.Printf("Added %s to index\n", path)
+
+	// 7. Commit your code with a custom message
+	case "commit":
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: star commit <message>")
+			return
+		}
+		// read the commit message from the command line arguments and the time
+		zprava := os.Args[2]
+		cas := time.Now()
+
+		//read the index.json file to get the list of files to commit
+		indexData, err := os.ReadFile(".star/index.json")
+		if err != nil {
+			fmt.Println("Error reading index file:", err)
+			return
+		}
+
+		// unmarshal the index data into an Index struct
+		mujIndex := Index{}
+		err = json.Unmarshal(indexData, &mujIndex)
+		if err != nil {
+			fmt.Println("Error unmarshaling index file:", err)
+			return
+		}
+		nactenaData, err := os.ReadFile(".star/HEAD")
+		if err != nil {
+			fmt.Println("Error reading HEAD file:", err)
+			return
+		}
+		rodic := string(nactenaData)
+
+		//create a new scruct for the commit with the info gained
+		novyCommit := Commit{
+			Message:   zprava,
+			Timestamp: cas,
+			Files:     mujIndex.Entries,
+			Parent:    rodic,
+		}
+
+		//marshal, save and hash the commit data, then save it to the commits directory and update the HEAD file
+		commitData, err := json.Marshal(novyCommit)
+		if err != nil {
+			fmt.Println("Error marshaling commit:", err)
+			return
+		}
+
+		hash := sha256.Sum256(commitData)
+		hexString := hex.EncodeToString(hash[:])
+		commitPath := filepath.Join(".star", "commits", hexString+".json")
+
+		// Save the commit data to the commits directory
+		err = os.WriteFile(commitPath, commitData, 0644)
+		if err != nil {
+			fmt.Println("Error creating commit file:", err)
+			return
+		}
+		// Update the HEAD file to point to the new commit
+		err = os.WriteFile(".star/HEAD", []byte(hexString), 0644)
+		if err != nil {
+			fmt.Println("Error updating HEAD file:", err)
+			return
+		}
+
+		fmt.Printf("Created commit %s\n", hexString)
 
 	default:
 		fmt.Println("Unknown command:", command)
