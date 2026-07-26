@@ -71,6 +71,12 @@ func main() {
 			return
 		}
 		handleCheckout(os.Args[2])
+	case "branch":
+		if len(os.Args) == 2 {
+			handleBranch("")
+		} else {
+			handleBranch(os.Args[2])
+		}
 	default:
 		fmt.Println("Unknown command:", command)
 	}
@@ -453,7 +459,7 @@ func handleCheckout(target string) {
 			fmt.Printf("Error restoring file %s: %v\n", file.Path, err)
 		}
 	}
-
+	//
 	// 4. update index to match the checked-out state
 	novyIndex := Index{Entries: commitData.Files}
 	indexData, _ := json.MarshalIndent(novyIndex, "", "  ")
@@ -467,4 +473,60 @@ func handleCheckout(target string) {
 		os.WriteFile(".star/HEAD", []byte(commitHash), 0644)
 		fmt.Printf("HEAD detached at %s\n", commitHash)
 	}
+}
+
+func handleBranch(name string) {
+	if name == "" {
+		//list all branches
+		headData, err := os.ReadFile(".star/HEAD")
+		currentBranch := ""
+		if err == nil {
+			headContent := string(headData)
+			if len(headContent) > 5 && headContent[:5] == "ref: " {
+				currentBranch = filepath.Base(headContent[5:])
+			}
+		}
+
+		entries, err := os.ReadDir(".star/refs/heads")
+		if err != nil {
+			fmt.Println("Error reading branches:", err)
+			return
+		}
+
+		for _, entry := range entries {
+			if entry.Name() == currentBranch {
+				fmt.Printf("* %s\n", entry.Name())
+			} else {
+				fmt.Printf("  %s\n", entry.Name())
+			}
+		}
+		return
+	}
+
+	// create new branch
+	commitHash, _, err := resolveHead()
+	if err != nil {
+		fmt.Println("Error resolving HEAD:", err)
+		return
+	}
+
+	if commitHash == "" {
+		fmt.Println("Error: No commits yet. Cannot create branch.")
+		return
+	}
+
+	branchPath := filepath.Join(".star", "refs", "heads", name)
+
+	if _, err := os.Stat(branchPath); err == nil {
+		fmt.Printf("Fatal: A branch named '%s' already exists.\n", name)
+		return
+	}
+
+	err = os.WriteFile(branchPath, []byte(commitHash), 0644)
+	if err != nil {
+		fmt.Println("Error creating branch:", err)
+		return
+	}
+
+	fmt.Printf("Created branch '%s'\n", name)
 }
