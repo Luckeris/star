@@ -1,100 +1,70 @@
 # Star ⭐
 
-A simpler, beginner-friendly alternative to Git commands — built in Go.
+A simpler git-like version control system. Integrated with git, for uploading and pushing to your remote repos.
 
-`star` is focused on making common version-control actions easier to understand and use, especially for people who are still learning Git workflows.
+The `star` project is focused on making git more available and easy-to-use for new people in programming industry.
 
----
-
-## Why Star?
-
-Git is powerful, but the learning curve can feel steep at first.  
-Star is my attempt to build a cleaner command-line experience for common tasks while learning Go and CLI development.
+I have suffered too, so I had the vision to make it easier for myself and for other people.
 
 ---
 
-## Goals
+## Features
 
-- Make basic version-control workflows easier
-- Provide clearer command usage for beginners
-- Keep the tool lightweight and practical
-- Learn and improve Go through real project development
-
----
-
-## Current Status
-
-**Work in progress**  
-This project is actively being developed and improved over time.
+- init (initialization of the .star structure)
+- add (adds a specific file or by using the . argument, you can add whole folders)
+- commit (commits with a message, saves and hashes the commit)
+- help (prints out all the usable commands and their usage)
+- log (prints all commits etc.)
+- status (shows currently tracked files)
+- branch (creates a new branch or shows your actual branch)
+- checkout (switches to a different branch)
 
 ---
 
-## Planned Features
+## Build & Installation
 
-- Initialize repository helpers
-- Simplified add/commit workflow
-- Basic branch and status commands
-- Easier remote setup helpers
-- Better command help and error messages
+To build the project from source, you need to have [Go](https://go.dev/) installed on your system.
 
----
-
-## Tech Stack
-
-- **Language:** Go
-- **Type:** CLI tool
-- **Focus:** Developer productivity / learning tool
-
----
-
-## Getting Started
-
-### 1) Clone the repository
+1. Navigate to the root directory of the project
+2. Compile the binary using the Go compiler:
 
 ```bash
-git clone https://github.com/Luckeris/star.git
-cd star/cmd/star
+go build -o star
 ```
 
-### 2) Use the commands
+To use the star command globally from anywhere in your terminal, move the generated executable to a directory that is included in your system's PATH variable (e.g., /usr/local/bin on Linux/macOS, or add the project folder to Environment Variables on Windows).
+
+---
+
+## Usage
 
 ```bash
-go run . <command>
+# 1. Initialize an empty star repository in your current directory
+
+star init
 ```
-
----
-
-## Development
-
-If you are contributing or testing locally:
 
 ```bash
-go run .
+# 2. Add some files or ignore unwanted ones via .starignore, then stage them all
+
+star add .
 ```
 
----
+```bash
+# 3. Commit your staged changes with a descriptive message
 
-## Contributing
+star commit "Initial commit"
+```
 
-Feedback, issues, and suggestions are welcome.
+```bash
+# 4. View your commit history
 
-If you try Star and something feels confusing or broken, please open an issue:
+star log
+```
 
-- what command you ran
-- what you expected
-- what happened instead
+```bash
+# 5. Create and switch to a new branch for a new feature
 
-This helps me improve the tool faster.
-
----
-
-## Disclaimer
-
-Star is a learning project and is **not a full replacement for Git**.  
-Use it for experimentation, learning, and lightweight workflows.
-
----
-
-## License
-
-This project is open-source and available under the MIT License.
+star branch feature-auth
+star checkout feature-auth
+```
