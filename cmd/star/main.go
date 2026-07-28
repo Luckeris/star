@@ -1,32 +1,14 @@
+// Command star is a simplified version control system binary entrypoint.
 package main
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
-	"time"
+
+	"github.com/Luckeris/star/internal/star"
 )
 
-type IndexEntry struct {
-	Path    string    `json:"path"`
-	Hash    string    `json:"hash"`
-	Size    int64     `json:"size"`
-	ModTime time.Time `json:"modtime"`
-}
-
-type Index struct {
-	Entries []IndexEntry `json:"entries"`
-}
-
-type Commit struct {
-	Message   string       `json:"message"`
-	Timestamp time.Time    `json:"timestamp"`
-	Files     []IndexEntry `json:"files"`
-	Parent    string       `json:"parent"`
-}
+const version = "star v0.1.0"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -34,499 +16,130 @@ func main() {
 		return
 	}
 
+	repo := star.NewRepository(".")
 	command := os.Args[1]
 
 	switch command {
 	case "init":
-		handleInit()
+		if err := repo.Init(); err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Initialized empty star repository in .star directory")
+
 	case "help":
 		printUsage()
+
 	case "version":
-		fmt.Println("star v0.1.0")
+		fmt.Println(version)
+
 	case "hash-object":
 		if len(os.Args) < 3 {
 			fmt.Println("Usage: star hash-object <file>")
-			return
+			os.Exit(1)
 		}
-		handleHashObject(os.Args[2])
+		hash, err := repo.HashObject(os.Args[2])
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println(hash)
+
 	case "add":
 		if len(os.Args) < 3 {
-			fmt.Println("Usage: star add <file>")
-			return
+			fmt.Println("Usage: star add <file|directory>")
+			os.Exit(1)
 		}
-		handleAdd(os.Args[2])
+		target := os.Args[2]
+		if err := repo.Add(target); err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Added %s to index\n", target)
+
 	case "commit":
 		if len(os.Args) < 3 {
 			fmt.Println("Usage: star commit <message>")
+			os.Exit(1)
+		}
+		hash, err := repo.Commit(os.Args[2])
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Created commit %s\n", hash)
+
+	case "log":
+		logs, err := repo.GetLog()
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+		for _, l := range logs {
+			fmt.Printf("Commit: %s\n", l.Hash)
+			fmt.Printf("Timestamp: %s\n", l.Commit.Timestamp)
+			fmt.Printf("Message: %s\n", l.Commit.Message)
+			fmt.Println("----------------------------------------")
+		}
+
+	case "status":
+		tracked, err := repo.Status()
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+		if len(tracked) == 0 {
+			fmt.Println("No files are currently tracked (index is empty).")
 			return
 		}
-		handleCommit(os.Args[2])
-	case "log":
-		handleLog()
-	case "status":
-		handleStatus()
+		fmt.Println("Tracked files:")
+		for _, path := range tracked {
+			fmt.Printf("  added: %s\n", path)
+		}
+
 	case "checkout":
 		if len(os.Args) < 3 {
 			fmt.Println("Usage: star checkout <branch_or_commit-hash>")
-			return
+			os.Exit(1)
 		}
-		handleCheckout(os.Args[2])
+		target := os.Args[2]
+		if err := repo.Checkout(target); err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Switched to '%s'\n", target)
+
 	case "branch":
 		if len(os.Args) == 2 {
-			handleBranch("")
+			branches, err := repo.ListBranches()
+			if err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+			for _, b := range branches {
+				if b.IsCurrent {
+					fmt.Printf("* %s\n", b.Name)
+				} else {
+					fmt.Printf("  %s\n", b.Name)
+				}
+			}
 		} else {
-			handleBranch(os.Args[2])
+			branchName := os.Args[2]
+			if err := repo.CreateBranch(branchName); err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Printf("Created branch '%s'\n", branchName)
 		}
+
 	default:
 		fmt.Println("Unknown command:", command)
+		printUsage()
+		os.Exit(1)
 	}
 }
 
 func printUsage() {
-	fmt.Println("Usage: star <command>")
-	fmt.Println("Available commands: help, version, init, hash-object, add, commit, log, status, checkout")
-}
-
-func handleInit() {
-	// init base directory
-	err := os.Mkdir(".star", 0755)
-	if err != nil {
-		if os.IsExist(err) {
-			fmt.Println(".star is already initialized")
-			return
-		}
-		fmt.Println("Error creating .star directory:", err)
-		return
-	}
-
-	// init subdirectories
-	slozky := []string{".star/objects", ".star/commits", ".star/refs", ".star/refs/heads"}
-	for _, slozka := range slozky {
-		err := os.MkdirAll(slozka, 0755)
-		if err != nil {
-			fmt.Println("Error creating directory:", err)
-			return
-		}
-	}
-
-	// create empty HEAD
-	error := os.WriteFile(".star/HEAD", []byte("ref: refs/heads/main"), 0644)
-	if error != nil {
-		fmt.Println("Error creating HEAD file:", error)
-		return
-	}
-
-	// init empty index
-	mujIndex := Index{Entries: []IndexEntry{}}
-	data, err := json.Marshal(mujIndex)
-	if err != nil {
-		fmt.Println("Error creating index file:", err)
-		return
-	}
-
-	err = os.WriteFile(".star/index.json", data, 0644)
-	if err != nil {
-		fmt.Println("Error creating index file:", err)
-		return
-	}
-
-	fmt.Println("Initialized empty star repository in .star directory")
-}
-
-func handleHashObject(path string) {
-	// read target file
-	file, err := os.ReadFile(path)
-	if err != nil {
-		fmt.Println("Error reading file:", err)
-		return
-	}
-
-	// calc hash
-	hash := sha256.Sum256(file)
-	hexString := hex.EncodeToString(hash[:])
-	fmt.Println(hexString)
-
-	// save object
-	objectPath := filepath.Join(".star", "objects", hexString)
-	err = os.WriteFile(objectPath, file, 0644)
-	if err != nil {
-		fmt.Println("Error creating object file:", err)
-		return
-	}
-}
-
-func handleAdd(path string) {
-	// read existing index
-	indexData, err := os.ReadFile(".star/index.json")
-	if err != nil {
-		fmt.Println("Error reading index file:", err)
-		return
-	}
-
-	mujIndex := Index{}
-	err = json.Unmarshal(indexData, &mujIndex)
-	if err != nil {
-		fmt.Println("Error unmarshaling index file:", err)
-		return
-	}
-
-	// read target file
-	fileData, err := os.ReadFile(path)
-	if err != nil {
-		fmt.Println("Error reading file:", err)
-		return
-	}
-
-	// save blob object
-	hash := sha256.Sum256(fileData)
-	hexString := hex.EncodeToString(hash[:])
-	objectPath := filepath.Join(".star", "objects", hexString)
-
-	err = os.WriteFile(objectPath, fileData, 0644)
-	if err != nil {
-		fmt.Println("Error creating object file:", err)
-		return
-	}
-
-	// get file metadata
-	info, err := os.Stat(path)
-	if err != nil {
-		fmt.Println("Error getting file info:", err)
-		return
-	}
-
-	// check for duplicates
-	nalezeno := false
-	for i, entry := range mujIndex.Entries {
-		if entry.Path == path {
-			mujIndex.Entries[i].Hash = hexString
-			mujIndex.Entries[i].Size = info.Size()
-			mujIndex.Entries[i].ModTime = info.ModTime()
-			nalezeno = true
-			break
-		}
-	}
-
-	// append new entry
-	if !nalezeno {
-		novyZaznam := IndexEntry{
-			Path:    path,
-			Hash:    hexString,
-			Size:    info.Size(),
-			ModTime: info.ModTime(),
-		}
-		mujIndex.Entries = append(mujIndex.Entries, novyZaznam)
-	}
-
-	// save updated index
-	updatedIndexData, err := json.MarshalIndent(mujIndex, "", "  ")
-	if err != nil {
-		fmt.Println("Error marshaling updated index:", err)
-		return
-	}
-
-	err = os.WriteFile(".star/index.json", updatedIndexData, 0644)
-	if err != nil {
-		fmt.Println("Error writing updated index file:", err)
-		return
-	}
-
-	fmt.Printf("Added %s to index\n", path)
-}
-
-func handleCommit(zprava string) {
-	cas := time.Now()
-
-	// read index
-	indexData, err := os.ReadFile(".star/index.json")
-	if err != nil {
-		fmt.Println("Error reading index file:", err)
-		return
-	}
-
-	mujIndex := Index{}
-	err = json.Unmarshal(indexData, &mujIndex)
-	if err != nil {
-		fmt.Println("Error unmarshaling index file:", err)
-		return
-	}
-
-	if len(mujIndex.Entries) == 0 {
-		fmt.Println("Nothing to commit (index is empty).")
-		return
-	}
-
-	// get parent commit using helper
-	rodic, refPath, err := resolveHead()
-	if err != nil {
-		fmt.Println("Error resolving HEAD:", err)
-		return
-	}
-
-	// create commit struct
-	novyCommit := Commit{
-		Message:   zprava,
-		Timestamp: cas,
-		Files:     mujIndex.Entries,
-		Parent:    rodic,
-	}
-
-	// save commit object
-	commitData, err := json.MarshalIndent(novyCommit, "", "  ")
-	if err != nil {
-		fmt.Println("Error marshaling commit:", err)
-		return
-	}
-
-	hash := sha256.Sum256(commitData)
-	hexString := hex.EncodeToString(hash[:])
-	commitPath := filepath.Join(".star", "commits", hexString+".json")
-
-	err = os.WriteFile(commitPath, commitData, 0644)
-	if err != nil {
-		fmt.Println("Error creating commit file:", err)
-		return
-	}
-
-	// update branch ref OR detached HEAD
-	if refPath != "" {
-		err = os.WriteFile(refPath, []byte(hexString), 0644)
-		if err != nil {
-			fmt.Println("Error updating branch reference:", err)
-			return
-		}
-	} else {
-		err = os.WriteFile(".star/HEAD", []byte(hexString), 0644)
-		if err != nil {
-			fmt.Println("Error updating HEAD file:", err)
-			return
-		}
-	}
-
-	// clear index after commit
-	prazdnyIndex := Index{Entries: []IndexEntry{}}
-	vycistenyData, err := json.Marshal(prazdnyIndex)
-	if err == nil {
-		os.WriteFile(".star/index.json", vycistenyData, 0644)
-	}
-
-	fmt.Printf("Created commit %s\n", hexString)
-}
-
-func handleLog() {
-	// get latest commit using helper
-	commitHash, _, err := resolveHead()
-	if err != nil {
-		fmt.Println("Error resolving HEAD:", err)
-		return
-	}
-
-	if commitHash == "" {
-		fmt.Println("No commits found.")
-		return
-	}
-
-	// traverse history
-	for {
-		if commitHash == "" {
-			break
-		}
-		commitPath := filepath.Join(".star", "commits", commitHash+".json")
-
-		commitFile, err := os.ReadFile(commitPath)
-		if err != nil {
-			fmt.Printf("Error reading commit file for hash %s: %v\n", commitHash, err)
-			return
-		}
-
-		commitData := Commit{}
-		err = json.Unmarshal(commitFile, &commitData)
-		if err != nil {
-			fmt.Printf("Error unmarshaling commit data for hash %s: %v\n", commitHash, err)
-			return
-		}
-
-		fmt.Printf("Commit: %s\n", commitHash)
-		fmt.Printf("Timestamp: %s\n", commitData.Timestamp)
-		fmt.Printf("Message: %s\n", commitData.Message)
-		fmt.Println("----------------------------------------")
-
-		commitHash = commitData.Parent
-	}
-}
-
-func handleStatus() {
-	// read index
-	indexData, err := os.ReadFile(".star/index.json")
-	if err != nil {
-		fmt.Println("Error reading index file:", err)
-		return
-	}
-
-	mujIndex := Index{}
-	err = json.Unmarshal(indexData, &mujIndex)
-	if err != nil {
-		fmt.Println("Error unmarshaling index file:", err)
-		return
-	}
-
-	if len(mujIndex.Entries) == 0 {
-		fmt.Println("No files are currently tracked (index is empty).")
-		return
-	}
-
-	// print tracked files
-	fmt.Printf("Tracked files:\n")
-	for _, entry := range mujIndex.Entries {
-		fmt.Printf("  added: %s\n", entry.Path)
-	}
-}
-
-// resolve current commit hash and reference path (if on a branch)
-
-func resolveHead() (string, string, error) {
-	headData, err := os.ReadFile(".star/HEAD")
-	if err != nil {
-		return "", "", err
-	}
-	headContent := string(headData)
-
-	// check if HEAD points to a branch (ref) or a commit hash
-	if len(headContent) > 5 && headContent[:5] == "ref: " {
-		refPath := filepath.Join(".star", headContent[5:])
-		refData, err := os.ReadFile(refPath)
-		if err != nil {
-			if os.IsNotExist(err) {
-				return "", refPath, nil // branch exists but no commit yet
-			}
-			return "", "", err
-		}
-		return string(refData), refPath, nil
-	}
-
-	// detached HEAD (points directly to a hash)
-	return headContent, "", nil
-}
-
-func handleCheckout(target string) {
-	var commitHash string
-	isBranch := false
-
-	// 1. resolve if target is a branch or a hash
-	branchPath := filepath.Join(".star", "refs", "heads", target)
-	if _, err := os.Stat(branchPath); err == nil {
-		isBranch = true
-		hashData, err := os.ReadFile(branchPath)
-		if err != nil {
-			fmt.Println("Error reading branch file:", err)
-			return
-		}
-		commitHash = string(hashData)
-	} else {
-		// target is not a branch, assume it's a commit hash
-		commitHash = target
-	}
-
-	// 2. read commit data
-	commitPath := filepath.Join(".star", "commits", commitHash+".json")
-	commitFile, err := os.ReadFile(commitPath)
-	if err != nil {
-		fmt.Printf("Error: Commit %s not found\n", target)
-		return
-	}
-
-	commitData := Commit{}
-	err = json.Unmarshal(commitFile, &commitData)
-	if err != nil {
-		fmt.Println("Error reading commit data:", err)
-		return
-	}
-
-	// 3. restore files to working directory
-	for _, file := range commitData.Files {
-		objectPath := filepath.Join(".star", "objects", file.Hash)
-		objectData, err := os.ReadFile(objectPath)
-		if err != nil {
-			fmt.Printf("Error reading object for file %s: %v\n", file.Path, err)
-			continue
-		}
-
-		// ensure parent directories exist
-		os.MkdirAll(filepath.Dir(file.Path), 0755)
-
-		err = os.WriteFile(file.Path, objectData, 0644)
-		if err != nil {
-			fmt.Printf("Error restoring file %s: %v\n", file.Path, err)
-		}
-	}
-	//
-	// 4. update index to match the checked-out state
-	novyIndex := Index{Entries: commitData.Files}
-	indexData, _ := json.MarshalIndent(novyIndex, "", "  ")
-	os.WriteFile(".star/index.json", indexData, 0644)
-
-	// 5. update HEAD
-	if isBranch {
-		os.WriteFile(".star/HEAD", []byte("ref: refs/heads/"+target), 0644)
-		fmt.Printf("Switched to branch '%s'\n", target)
-	} else {
-		os.WriteFile(".star/HEAD", []byte(commitHash), 0644)
-		fmt.Printf("HEAD detached at %s\n", commitHash)
-	}
-}
-
-func handleBranch(name string) {
-	if name == "" {
-		//list all branches
-		headData, err := os.ReadFile(".star/HEAD")
-		currentBranch := ""
-		if err == nil {
-			headContent := string(headData)
-			if len(headContent) > 5 && headContent[:5] == "ref: " {
-				currentBranch = filepath.Base(headContent[5:])
-			}
-		}
-
-		entries, err := os.ReadDir(".star/refs/heads")
-		if err != nil {
-			fmt.Println("Error reading branches:", err)
-			return
-		}
-
-		for _, entry := range entries {
-			if entry.Name() == currentBranch {
-				fmt.Printf("* %s\n", entry.Name())
-			} else {
-				fmt.Printf("  %s\n", entry.Name())
-			}
-		}
-		return
-	}
-
-	// create new branch
-	commitHash, _, err := resolveHead()
-	if err != nil {
-		fmt.Println("Error resolving HEAD:", err)
-		return
-	}
-
-	if commitHash == "" {
-		fmt.Println("Error: No commits yet. Cannot create branch.")
-		return
-	}
-
-	branchPath := filepath.Join(".star", "refs", "heads", name)
-
-	if _, err := os.Stat(branchPath); err == nil {
-		fmt.Printf("Fatal: A branch named '%s' already exists.\n", name)
-		return
-	}
-
-	err = os.WriteFile(branchPath, []byte(commitHash), 0644)
-	if err != nil {
-		fmt.Println("Error creating branch:", err)
-		return
-	}
-
-	fmt.Printf("Created branch '%s'\n", name)
+	fmt.Println("Usage: star <command> [arguments]")
+	fmt.Println("Available commands: help, version, init, hash-object, add, commit, log, status, checkout, branch")
 }
