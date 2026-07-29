@@ -24,7 +24,7 @@ func (r *Repository) HashObject(filePath string) (string, error) {
 	}
 	hashHex := hex.EncodeToString(hasher.Sum(nil))
 
-	objectPath := r.Path("objects", hashHex)
+	objectPath := r.Path(DirObjects, hashHex)
 
 	if _, err := fileData.Seek(0, io.SeekStart); err != nil {
 		return "", fmt.Errorf("failed to seek file: %w", err)
@@ -44,7 +44,7 @@ func (r *Repository) HashObject(filePath string) (string, error) {
 
 // ReadIndex reads and parses the repository index.json file.
 func (r *Repository) ReadIndex() (*Index, error) {
-	indexPath := r.Path("index.json")
+	indexPath := r.Path(FileIndex)
 	indexData, err := os.ReadFile(indexPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -68,7 +68,7 @@ func (r *Repository) WriteIndex(idx *Index) error {
 		return fmt.Errorf("failed to marshal index: %w", err)
 	}
 
-	indexPath := r.Path("index.json")
+	indexPath := r.Path(FileIndex)
 	if err := os.WriteFile(indexPath, indexData, 0644); err != nil {
 		return fmt.Errorf("failed to write index file: %w", err)
 	}
@@ -97,7 +97,7 @@ func (r *Repository) Add(targetPath string) error {
 			// Skip .git and .star directories
 			if d.IsDir() {
 				name := d.Name()
-				if name == ".git" || name == ".star" {
+				if name == ".git" || name == DirStar {
 					return filepath.SkipDir
 				}
 				return nil
@@ -115,7 +115,7 @@ func (r *Repository) Add(targetPath string) error {
 	for _, p := range pathsToAdd {
 		relPath := filepath.Clean(p)
 		// Ignore path if it is within .star
-		if strings.HasPrefix(relPath, ".star") {
+		if strings.HasPrefix(relPath, DirStar) {
 			continue
 		}
 

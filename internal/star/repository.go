@@ -10,6 +10,18 @@ import (
 	"strings"
 )
 
+const (
+	DirStar    = ".star"
+	DirObjects = "objects"
+	DirCommits = "commits"
+	DirRefs    = "refs"
+	DirHeads   = "heads"
+	FileIndex  = "index.json"
+	FileHead   = "HEAD"
+	RefPrefix  = "ref: "
+	RefHeads   = "refs/heads/"
+)
+
 var (
 	// ErrAlreadyInitialized is returned when attempting to initialize an existing repository.
 	ErrAlreadyInitialized = errors.New(".star is already initialized")
@@ -38,7 +50,7 @@ func NewRepository(rootPath string) *Repository {
 
 // Path returns a path joined relative to the .star directory within the repository root.
 func (r *Repository) Path(elem ...string) string {
-	slice := append([]string{r.RootPath, ".star"}, elem...)
+	slice := append([]string{r.RootPath, DirStar}, elem...)
 	return filepath.Join(slice...)
 }
 
@@ -50,10 +62,10 @@ func (r *Repository) Init() error {
 	}
 
 	dirs := []string{
-		r.Path("objects"),
-		r.Path("commits"),
-		r.Path("refs"),
-		r.Path("refs", "heads"),
+		r.Path(DirObjects),
+		r.Path(DirCommits),
+		r.Path(DirRefs),
+		r.Path(DirRefs, DirHeads),
 	}
 
 	for _, dir := range dirs {
@@ -62,8 +74,8 @@ func (r *Repository) Init() error {
 		}
 	}
 
-	headPath := r.Path("HEAD")
-	if err := os.WriteFile(headPath, []byte("ref: refs/heads/main"), 0644); err != nil {
+	headPath := r.Path(FileHead)
+	if err := os.WriteFile(headPath, []byte(RefPrefix+RefHeads+"main"), 0644); err != nil {
 		return fmt.Errorf("failed to create HEAD file: %w", err)
 	}
 
@@ -73,7 +85,7 @@ func (r *Repository) Init() error {
 		return fmt.Errorf("failed to marshal empty index: %w", err)
 	}
 
-	if err := os.WriteFile(r.Path("index.json"), indexData, 0644); err != nil {
+	if err := os.WriteFile(r.Path(FileIndex), indexData, 0644); err != nil {
 		return fmt.Errorf("failed to write index file: %w", err)
 	}
 
@@ -82,7 +94,7 @@ func (r *Repository) Init() error {
 
 // ResolveHead resolves the current commit hash and reference path (if on a branch).
 func (r *Repository) ResolveHead() (commitHash string, refPath string, err error) {
-	headPath := r.Path("HEAD")
+	headPath := r.Path(FileHead)
 	headData, err := os.ReadFile(headPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -93,8 +105,8 @@ func (r *Repository) ResolveHead() (commitHash string, refPath string, err error
 
 	headContent := strings.TrimSpace(string(headData))
 
-	if strings.HasPrefix(headContent, "ref: ") {
-		relRefPath := strings.TrimPrefix(headContent, "ref: ")
+	if strings.HasPrefix(headContent, RefPrefix) {
+		relRefPath := strings.TrimPrefix(headContent, RefPrefix)
 		refPath = r.Path(relRefPath)
 		refData, err := os.ReadFile(refPath)
 		if err != nil {

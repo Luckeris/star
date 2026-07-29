@@ -45,7 +45,7 @@ func (r *Repository) Commit(message string) (string, error) {
 
 	hash := sha256.Sum256(commitData)
 	hashHex := hex.EncodeToString(hash[:])
-	commitPath := r.Path("commits", hashHex+".json")
+	commitPath := r.Path(DirCommits, hashHex+".json")
 
 	if err := os.WriteFile(commitPath, commitData, 0644); err != nil {
 		return "", fmt.Errorf("failed to write commit file: %w", err)
@@ -57,7 +57,7 @@ func (r *Repository) Commit(message string) (string, error) {
 			return "", fmt.Errorf("failed to update branch reference: %w", err)
 		}
 	} else {
-		if err := os.WriteFile(r.Path("HEAD"), []byte(hashHex), 0644); err != nil {
+		if err := os.WriteFile(r.Path(FileHead), []byte(hashHex), 0644); err != nil {
 			return "", fmt.Errorf("failed to update HEAD file: %w", err)
 		}
 	}
@@ -84,7 +84,7 @@ func (r *Repository) GetLog() ([]CommitWithHash, error) {
 
 	var logs []CommitWithHash
 	for currentHash != "" {
-		commitPath := r.Path("commits", currentHash+".json")
+		commitPath := r.Path(DirCommits, currentHash+".json")
 		commitFile, err := os.ReadFile(commitPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read commit object for hash %s: %w", currentHash, err)

@@ -33,7 +33,7 @@ func (r *Repository) CreateBranch(name string) error {
 		return errors.New("cannot create branch: no commits yet")
 	}
 
-	branchPath := r.Path("refs", "heads", name)
+	branchPath := r.Path(DirRefs, DirHeads, name)
 	if _, err := os.Stat(branchPath); err == nil {
 		return fmt.Errorf("%w: %s", ErrBranchAlreadyExists, name)
 	}
@@ -47,17 +47,17 @@ func (r *Repository) CreateBranch(name string) error {
 
 // ListBranches returns all available branch names and indicates which branch is currently active.
 func (r *Repository) ListBranches() ([]BranchInfo, error) {
-	headPath := r.Path("HEAD")
+	headPath := r.Path(FileHead)
 	headData, err := os.ReadFile(headPath)
 	currentBranch := ""
 	if err == nil {
 		headContent := strings.TrimSpace(string(headData))
-		if strings.HasPrefix(headContent, "ref: refs/heads/") {
-			currentBranch = strings.TrimPrefix(headContent, "ref: refs/heads/")
+		if strings.HasPrefix(headContent, RefPrefix+RefHeads) {
+			currentBranch = strings.TrimPrefix(headContent, RefPrefix+RefHeads)
 		}
 	}
 
-	headsDir := r.Path("refs", "heads")
+	headsDir := r.Path(DirRefs, DirHeads)
 	entries, err := os.ReadDir(headsDir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -91,7 +91,7 @@ func (r *Repository) Checkout(target string) error {
 	var commitHash string
 	isBranch := false
 
-	branchPath := r.Path("refs", "heads", target)
+	branchPath := r.Path(DirRefs, DirHeads, target)
 	if _, err := os.Stat(branchPath); err == nil {
 		isBranch = true
 		hashData, err := os.ReadFile(branchPath)
@@ -103,7 +103,7 @@ func (r *Repository) Checkout(target string) error {
 		commitHash = target
 	}
 
-	commitPath := r.Path("commits", commitHash+".json")
+	commitPath := r.Path(DirCommits, commitHash+".json")
 	commitFile, err := os.ReadFile(commitPath)
 	if err != nil {
 		return fmt.Errorf("%w: %s", ErrCommitNotFound, target)
@@ -126,7 +126,7 @@ func (r *Repository) Checkout(target string) error {
 			return fmt.Errorf("failed to create directory for file %s: %w", file.Path, err)
 		}
 
-		objectPath := r.Path("objects", file.Hash)
+		objectPath := r.Path(DirObjects, file.Hash)
 		objFile, err := os.Open(objectPath)
 		if err != nil {
 			return fmt.Errorf("failed to read object for file %s: %w", file.Path, err)
@@ -154,9 +154,9 @@ func (r *Repository) Checkout(target string) error {
 	}
 
 	// Update HEAD
-	headPath := r.Path("HEAD")
+	headPath := r.Path(FileHead)
 	if isBranch {
-		if err := os.WriteFile(headPath, []byte("ref: refs/heads/"+target), 0644); err != nil {
+		if err := os.WriteFile(headPath, []byte(RefPrefix+RefHeads+target), 0644); err != nil {
 			return fmt.Errorf("failed to update HEAD to branch: %w", err)
 		}
 	} else {
