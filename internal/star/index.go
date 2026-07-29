@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,19 +13,32 @@ import (
 
 // HashObject calculates the SHA-256 hash of a file and stores it in .star/objects.
 func (r *Repository) HashObject(filePath string) (string, error) {
-	fileData, err := os.ReadFile(filePath)
+	fileData, err := os.Open(filePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to read file %s: %w", filePath, err)
 	}
-
-	hash := sha256.Sum256(fileData)
-	hashHex := hex.EncodeToString(hash[:])
+	defer fileData.Close()
+	hasher := sha256.New()
+	if _, err := io.Copy(hasher, fileData); err != nil {
+		return "", err
+	}
+	hashHex := hex.EncodeToString(hasher.Sum(nil))
 
 	objectPath := r.Path("objects", hashHex)
-	if err := os.WriteFile(objectPath, fileData, 0644); err != nil {
-		return "", fmt.Errorf("failed to save object file: %w", err)
+
+	if _, err := fileData.Seek(0, io.SeekStart); err != nil {
+		return "", fmt.Errorf("failed to seek file: %w", err)
 	}
 
+	outFile, err := os.Create(objectPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create object file: %w", err)
+	}
+	defer outFile.Close()
+
+	if _, err := io.Copy(outFile, fileData); err != nil {
+		return "", fmt.Errorf("failed to save object file: %w", err)
+	}
 	return hashHex, nil
 }
 

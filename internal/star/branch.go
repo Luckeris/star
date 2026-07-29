@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -115,19 +116,34 @@ func (r *Repository) Checkout(target string) error {
 
 	// Restore files from commit object store into working directory
 	for _, file := range commitData.Files {
-		objectPath := r.Path("objects", file.Hash)
-		objectData, err := os.ReadFile(objectPath)
-		if err != nil {
-			return fmt.Errorf("failed to read object for file %s: %w", file.Path, err)
+		targetFilePath := filepath.Clean(filepath.Join(r.RootPath, file.Path))
+		rel, err := filepath.Rel(r.RootPath, targetFilePath)
+		if err != nil || strings.HasPrefix(rel, "..") || rel == ".." {
+			return fmt.Errorf("invalid path traversal attempt: %s", file.Path)
 		}
 
-		targetFilePath := filepath.Join(r.RootPath, file.Path)
 		if err := os.MkdirAll(filepath.Dir(targetFilePath), 0755); err != nil {
 			return fmt.Errorf("failed to create directory for file %s: %w", file.Path, err)
 		}
 
-		if err := os.WriteFile(targetFilePath, objectData, 0644); err != nil {
+		objectPath := r.Path("objects", file.Hash)
+		objFile, err := os.Open(objectPath)
+		if err != nil {
+			return fmt.Errorf("failed to read object for file %s: %w", file.Path, err)
+		}
+
+		dstFile, err := os.Create(targetFilePath)
+		if err != nil {
+			objFile.Close()
 			return fmt.Errorf("failed to restore file %s: %w", file.Path, err)
+		}
+
+		_, copyErr := io.Copy(dstFile, objFile)
+		objFile.Close()
+		dstFile.Close()
+
+		if copyErr != nil {
+			return fmt.Errorf("failed to restore file %s: %w", file.Path, copyErr)
 		}
 	}
 
