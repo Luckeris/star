@@ -18,6 +18,7 @@ const (
 	DirHeads   = "heads"
 	FileIndex  = "index.json"
 	FileHead   = "HEAD"
+	FileConfig = "config.json"
 	RefPrefix  = "ref: "
 	RefHeads   = "refs/heads/"
 )
@@ -33,6 +34,8 @@ var (
 	ErrNothingToCommit = errors.New("nothing to commit (index is empty)")
 	// ErrNoCommits is returned when accessing history in a repository without commits.
 	ErrNoCommits = errors.New("no commits found")
+	// ErrNoRemote is returned when remote URL is not configured.
+	ErrNoRemote = errors.New("no remote URL configured (run 'star remote add <url>')")
 )
 
 // Repository encapsulates the file system operations for a Star VCS repository.
@@ -120,4 +123,48 @@ func (r *Repository) ResolveHead() (commitHash string, refPath string, err error
 
 	// Detached HEAD pointing directly to a hash
 	return headContent, "", nil
+}
+
+// SetRemote saves the remote repository URL to .star/config.json.
+func (r *Repository) SetRemote(remoteURL string) error {
+	remoteURL = strings.TrimSpace(remoteURL)
+	if remoteURL == "" {
+		return errors.New("remote URL cannot be empty")
+	}
+
+	cfg := Config{RemoteURL: remoteURL}
+	cfgData, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	configPath := r.Path(FileConfig)
+	if err := os.WriteFile(configPath, cfgData, 0644); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	return nil
+}
+
+// GetRemote reads the configured remote repository URL from .star/config.json.
+func (r *Repository) GetRemote() (string, error) {
+	configPath := r.Path(FileConfig)
+	cfgData, err := os.ReadFile(configPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", ErrNoRemote
+		}
+		return "", fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	var cfg Config
+	if err := json.Unmarshal(cfgData, &cfg); err != nil {
+		return "", fmt.Errorf("failed to parse config file: %w", err)
+	}
+
+	if cfg.RemoteURL == "" {
+		return "", ErrNoRemote
+	}
+
+	return cfg.RemoteURL, nil
 }

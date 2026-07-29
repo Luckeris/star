@@ -37,3 +37,32 @@ func TestInit(t *testing.T) {
 		t.Errorf("expected ErrAlreadyInitialized, got: %v", err)
 	}
 }
+
+func TestRemote(t *testing.T) {
+	tempDir := t.TempDir()
+	repo := star.NewRepository(tempDir)
+
+	if err := repo.Init(); err != nil {
+		t.Fatalf("failed to init repo: %v", err)
+	}
+
+	// GetRemote before setting should return ErrNoRemote
+	_, err := repo.GetRemote()
+	if err != star.ErrNoRemote {
+		t.Fatalf("expected ErrNoRemote, got: %v", err)
+	}
+
+	testURL := "https://github.com/example/star-repo.git"
+	if err := repo.SetRemote(testURL); err != nil {
+		t.Fatalf("failed to set remote: %v", err)
+	}
+
+	url, err := repo.GetRemote()
+	if err != nil {
+		t.Fatalf("failed to get remote: %v", err)
+	}
+
+	if url != testURL {
+		t.Fatalf("expected remote %s, got %s", testURL, url)
+	}
+}

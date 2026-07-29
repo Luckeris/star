@@ -36,3 +36,8 @@ type BranchInfo struct {
 	Name      string
 	IsCurrent bool
 }
+
+// Config holds repository configuration options such as remote URL.
+type Config struct {
+	RemoteURL string `json:"remote_url"`
+}

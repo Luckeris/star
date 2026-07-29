@@ -132,6 +132,27 @@ func main() {
 			fmt.Printf("Created branch '%s'\n", branchName)
 		}
 
+	case "remote":
+		// Handle reading or setting remote URL ("star remote", "star remote <url>", or "star remote add <url>")
+		if len(os.Args) == 2 {
+			url, err := repo.GetRemote()
+			if err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Printf("Remote URL: %s\n", url)
+		} else {
+			targetURL := os.Args[2]
+			if targetURL == "add" && len(os.Args) >= 4 {
+				targetURL = os.Args[3]
+			}
+			if err := repo.SetRemote(targetURL); err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Printf("Set remote URL to '%s'\n", targetURL)
+		}
+
 	default:
 		fmt.Println("Unknown command:", command)
 		printUsage()
@@ -141,5 +162,5 @@ func main() {
 
 func printUsage() {
 	fmt.Println("Usage: star <command> [arguments]")
-	fmt.Println("Available commands: help, version, init, hash-object, add, commit, log, status, checkout, branch")
+	fmt.Println("Available commands: help, version, init, hash-object, add, commit, log, status, checkout, branch, remote")
 }
