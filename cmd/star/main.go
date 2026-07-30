@@ -25,11 +25,10 @@ func main() {
 	switch command {
 	case "init":
 		if err := repo.Init(); err != nil {
-			fmt.Printf("%s: %v\n", red("Error"), err)
-			os.Exit(1)
+			handleCLIError(err)
 		}
-		fmt.Println(green("✓ Initialized empty Star repository in .star/ ⭐"))
-		fmt.Println(cyan("Tip: Run 'star login \"Your Name\" \"your.email@example.com\"' to set up your author identity."))
+		fmt.Println("Initialized empty Star repository in .star/")
+		fmt.Println(yellow("hint: run 'star login \"Your Name\" \"your.email@example.com\"' to set up your identity"))
 
 	case "help", "--help", "-h":
 		printUsage()
@@ -56,10 +55,9 @@ func main() {
 		}
 		target := os.Args[2]
 		if err := repo.Add(target); err != nil {
-			fmt.Printf("%s: %v\n", red("Error"), err)
-			os.Exit(1)
+			handleCLIError(err)
 		}
-		fmt.Printf("%s Staged '%s' for commit\n", green("✓"), target)
+		fmt.Printf("staged '%s' for commit\n", target)
 
 	case "commit":
 		if len(os.Args) < 3 {
@@ -68,8 +66,7 @@ func main() {
 		}
 		hash, err := repo.Commit(os.Args[2])
 		if err != nil {
-			fmt.Printf("%s: %v\n", red("Error"), err)
-			os.Exit(1)
+			handleCLIError(err)
 		}
 
 		branchName := "main"
@@ -86,8 +83,7 @@ func main() {
 	case "log":
 		logs, err := repo.GetLog()
 		if err != nil {
-			fmt.Printf("Error: %v\n", err)
-			os.Exit(1)
+			handleCLIError(err)
 		}
 		for _, l := range logs {
 			fmt.Printf("Commit: %s\n", l.Hash)
@@ -102,13 +98,12 @@ func main() {
 	case "status":
 		details, err := repo.GetStatusDetails()
 		if err != nil {
-			fmt.Printf("%s: %v\n", red("Error"), err)
-			os.Exit(1)
+			handleCLIError(err)
 		}
 		fmt.Printf("On branch %s\n", cyan(details.Branch))
 
 		if len(details.Staged) == 0 && len(details.Modified) == 0 && len(details.Untracked) == 0 {
-			fmt.Println(green("Nothing to commit, working tree clean ✨"))
+			fmt.Println("nothing to commit, working tree clean")
 			return
 		}
 
@@ -143,8 +138,7 @@ func main() {
 		}
 		target := os.Args[2]
 		if err := repo.Checkout(target); err != nil {
-			fmt.Printf("Error: %v\n", err)
-			os.Exit(1)
+			handleCLIError(err)
 		}
 		fmt.Printf("Switched to '%s'\n", target)
 
@@ -152,12 +146,11 @@ func main() {
 		if len(os.Args) == 2 {
 			branches, err := repo.ListBranches()
 			if err != nil {
-				fmt.Printf("Error: %v\n", err)
-				os.Exit(1)
+				handleCLIError(err)
 			}
 			for _, b := range branches {
 				if b.IsCurrent {
-					fmt.Printf("* %s\n", b.Name)
+					fmt.Printf("* %s\n", green(b.Name))
 				} else {
 					fmt.Printf("  %s\n", b.Name)
 				}
@@ -165,21 +158,18 @@ func main() {
 		} else {
 			branchName := os.Args[2]
 			if err := repo.CreateBranch(branchName); err != nil {
-				fmt.Printf("Error: %v\n", err)
-				os.Exit(1)
+				handleCLIError(err)
 			}
 			fmt.Printf("Created branch '%s'\n", branchName)
 		}
 
 	case "remote":
-		// Handle reading or setting remote URL ("star remote", "star remote <url>", or "star remote add <url>")
 		if len(os.Args) == 2 {
 			url, err := repo.GetRemote()
 			if err != nil {
-				fmt.Printf("Error: %v\n", err)
-				os.Exit(1)
+				handleCLIError(err)
 			}
-			fmt.Printf("Remote URL: %s\n", url)
+			fmt.Printf("origin\t%s\n", url)
 		} else {
 			targetURL := os.Args[2]
 			if targetURL == "add" {
@@ -190,8 +180,7 @@ func main() {
 				targetURL = os.Args[3]
 			}
 			if err := repo.SetRemote(targetURL); err != nil {
-				fmt.Printf("Error: %v\n", err)
-				os.Exit(1)
+				handleCLIError(err)
 			}
 			fmt.Printf("Set remote URL to '%s'\n", targetURL)
 		}
@@ -223,7 +212,15 @@ func main() {
 		}
 
 	case "push":
-		remoteURL, _ := repo.GetRemote()
+		isForce := false
+		if len(os.Args) >= 3 && (os.Args[2] == "--force" || os.Args[2] == "-f") {
+			isForce = true
+		}
+
+		remoteURL, err := repo.GetRemote()
+		if err != nil {
+			handleCLIError(err)
+		}
 		branchName := "main"
 		if branches, err := repo.ListBranches(); err == nil {
 			for _, b := range branches {
@@ -233,12 +230,36 @@ func main() {
 				}
 			}
 		}
-		fmt.Printf("Pushing branch '%s' to %s (%s)...\n", cyan(branchName), bold("origin"), yellow(remoteURL))
-		if err := repo.Push(); err != nil {
-			fmt.Printf("%s: %v\n", red("Error during push"), err)
-			os.Exit(1)
+		if isForce {
+			fmt.Printf("Force-pushing branch '%s' to %s (%s)...\n", cyan(branchName), bold("origin"), yellow(remoteURL))
+		} else {
+			fmt.Printf("Pushing branch '%s' to %s (%s)...\n", cyan(branchName), bold("origin"), yellow(remoteURL))
 		}
-		fmt.Println(green("✓ Successfully pushed to remote repository!"))
+
+		if err := repo.Push(isForce); err != nil {
+			handleCLIError(err)
+		}
+		fmt.Println("pushed to remote repository successfully")
+
+	case "pull":
+		remoteURL, err := repo.GetRemote()
+		if err != nil {
+			handleCLIError(err)
+		}
+		branchName := "main"
+		if branches, err := repo.ListBranches(); err == nil {
+			for _, b := range branches {
+				if b.IsCurrent {
+					branchName = b.Name
+					break
+				}
+			}
+		}
+		fmt.Printf("Pulling remote changes from %s (%s) for branch '%s'...\n", bold("origin"), yellow(remoteURL), cyan(branchName))
+		if err := repo.Pull(); err != nil {
+			handleCLIError(err)
+		}
+		fmt.Println("pulled and integrated remote changes successfully")
 
 	case "update", "self-update":
 		fmt.Println("Checking for updates on GitHub...")
@@ -304,30 +325,31 @@ func handleLogin(repo *star.Repository) {
 }
 
 func printUsage() {
-	fmt.Println(bold(yellow("⭐ STAR Version Control System v0.1.0")))
-	fmt.Println(cyan("A simpler, beginner-friendly VCS integrated with Git & GitHub."))
+	fmt.Println(bold("Star Version Control System v0.1.0"))
+	fmt.Println("A simpler, beginner-friendly VCS integrated with Git & GitHub.")
 	fmt.Println()
 	fmt.Println(bold("Usage:"))
 	fmt.Println("  star <command> [arguments]")
 	fmt.Println()
-	fmt.Println(bold("🚀 Getting Started:"))
+	fmt.Println(bold("Getting Started:"))
 	fmt.Println("  " + yellow("init") + "          Initialize a new Star repository in current folder")
 	fmt.Println("  " + yellow("login") + "         Configure your author name and email identity")
 	fmt.Println("  " + yellow("remote") + " [url]  Show or set remote repository URL (GitHub)")
 	fmt.Println()
-	fmt.Println(bold("📝 Daily Workflow:"))
+	fmt.Println(bold("Daily Workflow:"))
 	fmt.Println("  " + yellow("add") + " <path>    Stage a file or directory for commit")
 	fmt.Println("  " + yellow("commit") + " <msg>  Record staged changes into a new commit")
 	fmt.Println("  " + yellow("status") + "        Show branch status (staged, modified, untracked)")
 	fmt.Println("  " + yellow("diff") + "          Show line-by-line file differences")
-	fmt.Println("  " + yellow("push") + "          Push commit history to GitHub remote repository")
+	fmt.Println("  " + yellow("pull") + "          Pull and integrate remote changes from GitHub")
+	fmt.Println("  " + yellow("push") + " [--force] Push commit history to GitHub remote repository")
 	fmt.Println("  " + yellow("log") + "           Display detailed commit history")
 	fmt.Println()
-	fmt.Println(bold("🌿 Branching & History:"))
+	fmt.Println(bold("Branching & History:"))
 	fmt.Println("  " + yellow("branch") + " [name] List branches or create a new branch")
 	fmt.Println("  " + yellow("checkout") + " <ref> Switch to a branch or commit hash")
 	fmt.Println()
-	fmt.Println(bold("🛠️ Utility:"))
+	fmt.Println(bold("Utility:"))
 	fmt.Println("  " + yellow("update") + "        Check GitHub for latest release and auto-update Star")
 	fmt.Println("  " + yellow("version") + "       Display Star version")
 	fmt.Println("  " + yellow("help") + "          Show this help message")
