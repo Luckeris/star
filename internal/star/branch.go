@@ -25,6 +25,19 @@ func validateBranchName(name string) error {
 	return nil
 }
 
+// isValidHash checks if a string consists only of valid hex characters (SHA-256 hash or hash prefix).
+func isValidHash(s string) bool {
+	if len(s) < 4 || len(s) > 64 {
+		return false
+	}
+	for _, c := range s {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return false
+		}
+	}
+	return true
+}
+
 // CreateBranch creates a new branch pointing to the current HEAD commit.
 func (r *Repository) CreateBranch(name string) error {
 	name = strings.TrimSpace(name)
@@ -100,26 +113,26 @@ func (r *Repository) Checkout(target string) error {
 		return errors.New("checkout target cannot be empty")
 	}
 
-	if err := validateBranchName(target); err != nil {
-		// Not a valid branch name, treat as a commit hash instead
-		commitPath := r.Path(DirCommits, target+".json")
-		if _, statErr := os.Stat(commitPath); statErr != nil {
-			return fmt.Errorf("%w: %s", ErrCommitNotFound, target)
-		}
-	}
-
 	var commitHash string
 	isBranch := false
 
-	branchPath := r.Path(DirRefs, DirHeads, target)
-	if _, err := os.Stat(branchPath); err == nil {
-		isBranch = true
-		hashData, err := os.ReadFile(branchPath)
-		if err != nil {
-			return fmt.Errorf("failed to read branch file: %w", err)
+	// Check if target is a valid branch name and if the branch ref file exists
+	if err := validateBranchName(target); err == nil {
+		branchPath := r.Path(DirRefs, DirHeads, target)
+		if _, statErr := os.Stat(branchPath); statErr == nil {
+			isBranch = true
+			hashData, err := os.ReadFile(branchPath)
+			if err != nil {
+				return fmt.Errorf("failed to read branch file: %w", err)
+			}
+			commitHash = strings.TrimSpace(string(hashData))
 		}
-		commitHash = strings.TrimSpace(string(hashData))
-	} else {
+	}
+
+	if !isBranch {
+		if !isValidHash(target) {
+			return fmt.Errorf("%w: %s", ErrCommitNotFound, target)
+		}
 		commitHash = target
 	}
 
@@ -132,6 +145,30 @@ func (r *Repository) Checkout(target string) error {
 	var commitData Commit
 	if err := json.Unmarshal(commitFile, &commitData); err != nil {
 		return fmt.Errorf("failed to parse commit data: %w", err)
+	}
+
+	// Remove files tracked in the current commit that do not exist in the target commit
+	currentHeadHash, _, _ := r.ResolveHead()
+	if currentHeadHash != "" && currentHeadHash != commitHash {
+		currentCommitPath := r.Path(DirCommits, currentHeadHash+".json")
+		if currentCommitFile, err := os.ReadFile(currentCommitPath); err == nil {
+			var currentCommit Commit
+			if err := json.Unmarshal(currentCommitFile, &currentCommit); err == nil {
+				targetFiles := make(map[string]bool, len(commitData.Files))
+				for _, f := range commitData.Files {
+					targetFiles[f.Path] = true
+				}
+				for _, f := range currentCommit.Files {
+					if !targetFiles[f.Path] {
+						staleFilePath := filepath.Clean(filepath.Join(r.RootPath, f.Path))
+						rel, err := filepath.Rel(r.RootPath, staleFilePath)
+						if err == nil && !strings.HasPrefix(rel, "..") && rel != ".." {
+							_ = os.Remove(staleFilePath)
+						}
+					}
+				}
+			}
+		}
 	}
 
 	// Restore files from commit object store into working directory
