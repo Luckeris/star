@@ -171,8 +171,13 @@ func (r *Repository) GetStatusDetails() (*StatusDetails, error) {
 			return err
 		}
 
-		name := d.Name()
-		if name == ".git" || name == DirStar {
+		rel, relErr := filepath.Rel(r.RootPath, p)
+		if relErr != nil {
+			return nil
+		}
+		relPath := filepath.Clean(rel)
+
+		if IsStarOrGitPath(relPath) {
 			if d.IsDir() {
 				return filepath.SkipDir
 			}
@@ -189,12 +194,6 @@ func (r *Repository) GetStatusDetails() (*StatusDetails, error) {
 		if d.IsDir() {
 			return nil
 		}
-
-		rel, err := filepath.Rel(r.RootPath, p)
-		if err != nil {
-			return nil
-		}
-		relPath := filepath.Clean(rel)
 
 		if entry, isStaged := stagedMap[relPath]; isStaged {
 			info, statErr := os.Stat(p)

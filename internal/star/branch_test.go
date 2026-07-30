@@ -40,7 +40,7 @@ func TestBranchAndCheckout(t *testing.T) {
 		t.Fatalf("failed to write file.txt: %v", err)
 	}
 
-	if err := repo.Add("file.txt"); err != nil {
+	if _, err := repo.Add("file.txt"); err != nil {
 		t.Fatalf("failed to add file.txt: %v", err)
 	}
 
@@ -74,6 +74,27 @@ func TestBranchAndCheckout(t *testing.T) {
 			t.Errorf("expected branch feature to be marked current")
 		}
 	}
+
+	// Cannot delete current active branch
+	err = repo.DeleteBranch("feature")
+	if err == nil {
+		t.Fatal("expected error deleting current branch, got nil")
+	}
+
+	// Switch back to main branch
+	if err := repo.Checkout("main"); err != nil {
+		t.Fatalf("failed to checkout main: %v", err)
+	}
+
+	// Delete feature branch
+	if err := repo.DeleteBranch("feature"); err != nil {
+		t.Fatalf("failed to delete feature branch: %v", err)
+	}
+
+	branches, _ = repo.ListBranches()
+	if len(branches) != 1 {
+		t.Fatalf("expected 1 branch after deletion, got %d", len(branches))
+	}
 }
 
 func TestCheckoutStaleFileCleanup(t *testing.T) {
@@ -100,7 +121,7 @@ func TestCheckoutStaleFileCleanup(t *testing.T) {
 	if err := os.WriteFile(file1Path, []byte("file1 content"), 0644); err != nil {
 		t.Fatalf("failed to write file1: %v", err)
 	}
-	if err := repo.Add("file1.txt"); err != nil {
+	if _, err := repo.Add("file1.txt"); err != nil {
 		t.Fatalf("failed to add file1: %v", err)
 	}
 	commit1Hash, err := repo.Commit("commit 1 on main")
@@ -118,7 +139,7 @@ func TestCheckoutStaleFileCleanup(t *testing.T) {
 	if err := os.WriteFile(file2Path, []byte("file2 content"), 0644); err != nil {
 		t.Fatalf("failed to write file2: %v", err)
 	}
-	if err := repo.Add("file2.txt"); err != nil {
+	if _, err := repo.Add("file2.txt"); err != nil {
 		t.Fatalf("failed to add file2: %v", err)
 	}
 	_, err = repo.Commit("commit 2 on main")

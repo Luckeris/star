@@ -50,21 +50,42 @@ func main() {
 
 	case "add":
 		if len(os.Args) < 3 {
-			fmt.Println("Usage: star add <file|directory>")
+			fmt.Println("Usage: star add <file|directory|-A>")
 			os.Exit(1)
 		}
 		target := os.Args[2]
-		if err := repo.Add(target); err != nil {
+		if target == "-A" || target == "--all" {
+			target = "."
+		}
+		addedFiles, err := repo.Add(target)
+		if err != nil {
 			handleCLIError(err)
 		}
-		fmt.Printf("staged '%s' for commit\n", target)
+		if len(addedFiles) == 0 {
+			fmt.Println("no files staged")
+			return
+		}
+		for _, file := range addedFiles {
+			fmt.Printf("staged '%s' for commit\n", file)
+		}
 
 	case "commit":
 		if len(os.Args) < 3 {
-			fmt.Println("Usage: star commit <message>")
+			fmt.Println("Usage: star commit [-m message]")
 			os.Exit(1)
 		}
-		hash, err := repo.Commit(os.Args[2])
+		message := ""
+		if os.Args[2] == "-m" || os.Args[2] == "--message" {
+			if len(os.Args) < 4 {
+				fmt.Println("Usage: star commit -m <message>")
+				os.Exit(1)
+			}
+			message = os.Args[3]
+		} else {
+			message = os.Args[2]
+		}
+
+		hash, err := repo.Commit(message)
 		if err != nil {
 			handleCLIError(err)
 		}
@@ -78,21 +99,28 @@ func main() {
 				}
 			}
 		}
-		fmt.Printf("[%s %s] %s\n", cyan(branchName), yellow(hash[:8]), os.Args[2])
+		fmt.Printf("[%s %s] %s\n", cyan(branchName), yellow(hash[:8]), message)
 
 	case "log":
+		limit := 0
+		if len(os.Args) >= 4 && (os.Args[2] == "-n" || os.Args[2] == "--limit") {
+			_, _ = fmt.Sscanf(os.Args[3], "%d", &limit)
+		}
+
 		logs, err := repo.GetLog()
 		if err != nil {
 			handleCLIError(err)
 		}
+		if limit > 0 && len(logs) > limit {
+			logs = logs[:limit]
+		}
 		for _, l := range logs {
-			fmt.Printf("Commit: %s\n", l.Hash)
+			fmt.Printf("%s %s\n", yellow("commit"), yellow(l.Hash))
 			if l.Commit.AuthorName != "" {
 				fmt.Printf("Author: %s <%s>\n", l.Commit.AuthorName, l.Commit.AuthorEmail)
 			}
-			fmt.Printf("Timestamp: %s\n", l.Commit.Timestamp.Format("2006-01-02 15:04:05"))
-			fmt.Printf("Message: %s\n", l.Commit.Message)
-			fmt.Println("----------------------------------------")
+			fmt.Printf("Date:   %s\n\n", l.Commit.Timestamp.Format("Mon Jan 2 15:04:05 2006 -0700"))
+			fmt.Printf("    %s\n\n", l.Commit.Message)
 		}
 
 	case "status":
@@ -133,14 +161,29 @@ func main() {
 
 	case "checkout":
 		if len(os.Args) < 3 {
-			fmt.Println("Usage: star checkout <branch_or_commit-hash>")
+			fmt.Println("Usage: star checkout [-b] <branch_or_commit-hash>")
 			os.Exit(1)
 		}
-		target := os.Args[2]
-		if err := repo.Checkout(target); err != nil {
-			handleCLIError(err)
+		if os.Args[2] == "-b" || os.Args[2] == "--branch" {
+			if len(os.Args) < 4 {
+				fmt.Println("Usage: star checkout -b <new-branch-name>")
+				os.Exit(1)
+			}
+			newBranch := os.Args[3]
+			if err := repo.CreateBranch(newBranch); err != nil {
+				handleCLIError(err)
+			}
+			if err := repo.Checkout(newBranch); err != nil {
+				handleCLIError(err)
+			}
+			fmt.Printf("switched to a new branch '%s'\n", cyan(newBranch))
+		} else {
+			target := os.Args[2]
+			if err := repo.Checkout(target); err != nil {
+				handleCLIError(err)
+			}
+			fmt.Printf("switched to branch '%s'\n", cyan(target))
 		}
-		fmt.Printf("Switched to '%s'\n", target)
 
 	case "branch":
 		if len(os.Args) == 2 {
@@ -155,12 +198,18 @@ func main() {
 					fmt.Printf("  %s\n", b.Name)
 				}
 			}
+		} else if len(os.Args) >= 4 && (os.Args[2] == "-d" || os.Args[2] == "-D" || os.Args[2] == "--delete") {
+			branchToDelete := os.Args[3]
+			if err := repo.DeleteBranch(branchToDelete); err != nil {
+				handleCLIError(err)
+			}
+			fmt.Printf("deleted branch '%s'\n", branchToDelete)
 		} else {
 			branchName := os.Args[2]
 			if err := repo.CreateBranch(branchName); err != nil {
 				handleCLIError(err)
 			}
-			fmt.Printf("Created branch '%s'\n", branchName)
+			fmt.Printf("created branch '%s'\n", branchName)
 		}
 
 	case "remote":

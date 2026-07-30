@@ -70,6 +70,38 @@ func (r *Repository) CreateBranch(name string) error {
 	return nil
 }
 
+// DeleteBranch removes a branch reference file from .star/refs/heads/.
+func (r *Repository) DeleteBranch(name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return errors.New("branch name cannot be empty")
+	}
+
+	if err := validateBranchName(name); err != nil {
+		return err
+	}
+
+	branches, err := r.ListBranches()
+	if err == nil {
+		for _, b := range branches {
+			if b.Name == name && b.IsCurrent {
+				return fmt.Errorf("cannot delete branch '%s' because it is currently checked out", name)
+			}
+		}
+	}
+
+	branchPath := r.Path(DirRefs, DirHeads, name)
+	if _, err := os.Stat(branchPath); os.IsNotExist(err) {
+		return fmt.Errorf("branch '%s' not found", name)
+	}
+
+	if err := os.Remove(branchPath); err != nil {
+		return fmt.Errorf("failed to delete branch ref: %w", err)
+	}
+
+	return nil
+}
+
 // ListBranches returns all available branch names and indicates which branch is currently active.
 func (r *Repository) ListBranches() ([]BranchInfo, error) {
 	headPath := r.Path(FileHead)
@@ -160,6 +192,9 @@ func (r *Repository) Checkout(target string) error {
 				}
 				for _, f := range currentCommit.Files {
 					if !targetFiles[f.Path] {
+						if IsStarOrGitPath(f.Path) {
+							continue
+						}
 						staleFilePath := filepath.Clean(filepath.Join(r.RootPath, f.Path))
 						rel, err := filepath.Rel(r.RootPath, staleFilePath)
 						if err == nil && !strings.HasPrefix(rel, "..") && rel != ".." {
@@ -173,6 +208,9 @@ func (r *Repository) Checkout(target string) error {
 
 	// Restore files from commit object store into working directory
 	for _, file := range commitData.Files {
+		if IsStarOrGitPath(file.Path) {
+			continue
+		}
 		targetFilePath := filepath.Clean(filepath.Join(r.RootPath, file.Path))
 		rel, err := filepath.Rel(r.RootPath, targetFilePath)
 		if err != nil || strings.HasPrefix(rel, "..") || rel == ".." {

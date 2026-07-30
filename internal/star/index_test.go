@@ -45,7 +45,7 @@ func TestAddSingleFileAndDirectory(t *testing.T) {
 		_ = os.Chdir(oldWd)
 	}()
 
-	if err := repo.Add("file1.txt"); err != nil {
+	if _, err := repo.Add("file1.txt"); err != nil {
 		t.Fatalf("failed to add file1.txt: %v", err)
 	}
 
@@ -62,7 +62,7 @@ func TestAddSingleFileAndDirectory(t *testing.T) {
 	}
 
 	// Add directory recursively (add .)
-	if err := repo.Add("."); err != nil {
+	if _, err := repo.Add("."); err != nil {
 		t.Fatalf("failed to add directory: %v", err)
 	}
 
@@ -71,8 +71,8 @@ func TestAddSingleFileAndDirectory(t *testing.T) {
 		t.Fatalf("failed to read index: %v", err)
 	}
 
-	if len(idx.Entries) != 2 {
-		t.Fatalf("expected 2 index entries after adding '.', got %d", len(idx.Entries))
+	if len(idx.Entries) != 3 {
+		t.Fatalf("expected 3 index entries after adding '.' (including auto-created .gitignore), got %d", len(idx.Entries))
 	}
 }
 
@@ -121,7 +121,7 @@ func TestStarIgnore(t *testing.T) {
 	}
 
 	// Add all
-	if err := repo.Add("."); err != nil {
+	if _, err := repo.Add("."); err != nil {
 		t.Fatalf("failed to add .: %v", err)
 	}
 

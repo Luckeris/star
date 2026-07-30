@@ -40,7 +40,7 @@ func TestCommitAndLog(t *testing.T) {
 		t.Fatalf("failed to write test.txt: %v", err)
 	}
 
-	if err := repo.Add("test.txt"); err != nil {
+	if _, err := repo.Add("test.txt"); err != nil {
 		t.Fatalf("failed to add file: %v", err)
 	}
 

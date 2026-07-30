@@ -37,6 +37,8 @@ var (
 	ErrNoCommits = errors.New("no commits found")
 	// ErrNoRemote is returned when remote URL is not configured.
 	ErrNoRemote = errors.New("no remote URL configured (run 'star remote add <url>')")
+	// ErrEverythingUpToDate is returned when pushing to a remote that is already up to date.
+	ErrEverythingUpToDate = errors.New("everything up-to-date")
 )
 
 // Repository encapsulates the file system operations for a Star VCS repository.
@@ -44,10 +46,50 @@ type Repository struct {
 	RootPath string
 }
 
-// NewRepository creates a new Repository instance targeting rootPath.
+// IsStarOrGitPath returns true if the path is inside .star or .git directories.
+func IsStarOrGitPath(path string) bool {
+	clean := filepath.ToSlash(filepath.Clean(path))
+	return clean == ".star" || strings.HasPrefix(clean, ".star/") || clean == ".git" || strings.HasPrefix(clean, ".git/")
+}
+
+// FindRepositoryRoot walks up parent directories starting from startPath until it finds a .star directory.
+func FindRepositoryRoot(startPath string) (string, error) {
+	if startPath == "" || startPath == "." {
+		cwd, err := os.Getwd()
+		if err == nil {
+			startPath = cwd
+		}
+	}
+	absPath, err := filepath.Abs(startPath)
+	if err != nil {
+		return "", err
+	}
+
+	dir := absPath
+	for {
+		starDir := filepath.Join(dir, DirStar)
+		if info, err := os.Stat(starDir); err == nil && info.IsDir() {
+			return dir, nil
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+
+	return "", ErrNotInitialized
+}
+
+// NewRepository creates a new Repository instance targeting rootPath (automatically discovering root if "." is passed).
 func NewRepository(rootPath string) *Repository {
-	if rootPath == "" {
-		rootPath = "."
+	if rootPath == "" || rootPath == "." {
+		if foundRoot, err := FindRepositoryRoot("."); err == nil {
+			rootPath = foundRoot
+		} else {
+			rootPath = "."
+		}
 	}
 	return &Repository{RootPath: rootPath}
 }
@@ -93,6 +135,12 @@ func (r *Repository) Init() error {
 
 	if err := os.WriteFile(r.Path(FileIndex), indexData, 0644); err != nil {
 		return fmt.Errorf("failed to write index file: %w", err)
+	}
+
+	// Auto-create .gitignore with .star/ if not present
+	gitignorePath := filepath.Join(r.RootPath, ".gitignore")
+	if _, err := os.Stat(gitignorePath); os.IsNotExist(err) {
+		_ = os.WriteFile(gitignorePath, []byte(".star/\n"), 0644)
 	}
 
 	return nil

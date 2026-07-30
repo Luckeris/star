@@ -125,21 +125,21 @@ func isPathIgnored(path string, patterns []string) bool {
 	return false
 }
 
-// Add stages a single file or recursively stages all files within a directory.
-func (r *Repository) Add(targetPath string) error {
+// Add stages a single file or recursively stages all files within a directory and returns the staged paths.
+func (r *Repository) Add(targetPath string) ([]string, error) {
 	idx, err := r.ReadIndex()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	patterns, err := r.LoadIgnorePatterns()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	info, err := os.Stat(targetPath)
 	if err != nil {
-		return fmt.Errorf("failed to stat target path %s: %w", targetPath, err)
+		return nil, fmt.Errorf("failed to stat target path %s: %w", targetPath, err)
 	}
 
 	var pathsToAdd []string
@@ -169,7 +169,7 @@ func (r *Repository) Add(targetPath string) error {
 			return nil
 		})
 		if err != nil {
-			return fmt.Errorf("error walking directory %s: %w", targetPath, err)
+			return nil, fmt.Errorf("error walking directory %s: %w", targetPath, err)
 		}
 	} else {
 		if !isPathIgnored(targetPath, patterns) {
@@ -182,21 +182,26 @@ func (r *Repository) Add(targetPath string) error {
 		entryIndex[entry.Path] = i
 	}
 
+	var addedPaths []string
 	for _, p := range pathsToAdd {
+		rel, err := filepath.Rel(r.RootPath, p)
+		if err == nil {
+			p = rel
+		}
 		relPath := filepath.Clean(p)
-		// Ignore path if it is within .star
-		if strings.HasPrefix(relPath, DirStar) {
+		// Ignore path if it is within .star or .git
+		if IsStarOrGitPath(relPath) {
 			continue
 		}
 
 		hashHex, err := r.HashObject(relPath)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		fileInfo, err := os.Stat(relPath)
 		if err != nil {
-			return fmt.Errorf("failed to stat file %s: %w", relPath, err)
+			return nil, fmt.Errorf("failed to stat file %s: %w", relPath, err)
 		}
 
 		if i, exists := entryIndex[relPath]; exists {
@@ -212,7 +217,12 @@ func (r *Repository) Add(targetPath string) error {
 				ModTime: fileInfo.ModTime(),
 			})
 		}
+		addedPaths = append(addedPaths, relPath)
 	}
 
-	return r.WriteIndex(idx)
+	if err := r.WriteIndex(idx); err != nil {
+		return nil, err
+	}
+
+	return addedPaths, nil
 }
