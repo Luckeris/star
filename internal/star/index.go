@@ -81,9 +81,58 @@ func (r *Repository) WriteIndex(idx *Index) error {
 	return nil
 }
 
+// LoadIgnorePatterns reads .starignore if it exists in repository root and returns pattern strings.
+func (r *Repository) LoadIgnorePatterns() ([]string, error) {
+	ignorePath := filepath.Join(r.RootPath, FileStarIgnore)
+	data, err := os.ReadFile(ignorePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to read .starignore: %w", err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	var patterns []string
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		patterns = append(patterns, filepath.ToSlash(line))
+	}
+	return patterns, nil
+}
+
+// isPathIgnored checks if a given path matches any pattern in patterns.
+func isPathIgnored(path string, patterns []string) bool {
+	cleanPath := filepath.ToSlash(filepath.Clean(path))
+	baseName := filepath.Base(cleanPath)
+
+	for _, pattern := range patterns {
+		cleanPattern := strings.TrimPrefix(pattern, "/")
+		if matched, _ := filepath.Match(cleanPattern, baseName); matched {
+			return true
+		}
+		if matched, _ := filepath.Match(cleanPattern, cleanPath); matched {
+			return true
+		}
+		dirPattern := strings.TrimSuffix(cleanPattern, "/")
+		if cleanPath == dirPattern || strings.HasPrefix(cleanPath, dirPattern+"/") {
+			return true
+		}
+	}
+	return false
+}
+
 // Add stages a single file or recursively stages all files within a directory.
 func (r *Repository) Add(targetPath string) error {
 	idx, err := r.ReadIndex()
+	if err != nil {
+		return err
+	}
+
+	patterns, err := r.LoadIgnorePatterns()
 	if err != nil {
 		return err
 	}
@@ -99,22 +148,33 @@ func (r *Repository) Add(targetPath string) error {
 			if err != nil {
 				return err
 			}
-			// Skip .git and .star directories
-			if d.IsDir() {
-				name := d.Name()
-				if name == ".git" || name == DirStar {
+			name := d.Name()
+			if name == ".git" || name == DirStar {
+				if d.IsDir() {
 					return filepath.SkipDir
 				}
 				return nil
 			}
-			pathsToAdd = append(pathsToAdd, p)
+
+			if isPathIgnored(p, patterns) {
+				if d.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+
+			if !d.IsDir() {
+				pathsToAdd = append(pathsToAdd, p)
+			}
 			return nil
 		})
 		if err != nil {
 			return fmt.Errorf("error walking directory %s: %w", targetPath, err)
 		}
 	} else {
-		pathsToAdd = append(pathsToAdd, targetPath)
+		if !isPathIgnored(targetPath, patterns) {
+			pathsToAdd = append(pathsToAdd, targetPath)
+		}
 	}
 	// Build a lookup map for O(1) entry search instead of O(n) linear scan
 	entryIndex := make(map[string]int, len(idx.Entries))

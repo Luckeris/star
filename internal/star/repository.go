@@ -11,16 +11,17 @@ import (
 )
 
 const (
-	DirStar    = ".star"
-	DirObjects = "objects"
-	DirCommits = "commits"
-	DirRefs    = "refs"
-	DirHeads   = "heads"
-	FileIndex  = "index.json"
-	FileHead   = "HEAD"
-	FileConfig = "config.json"
-	RefPrefix  = "ref: "
-	RefHeads   = "refs/heads/"
+	DirStar        = ".star"
+	DirObjects     = "objects"
+	DirCommits     = "commits"
+	DirRefs        = "refs"
+	DirHeads       = "heads"
+	FileIndex      = "index.json"
+	FileHead       = "HEAD"
+	FileConfig     = "config.json"
+	FileStarIgnore = ".starignore"
+	RefPrefix      = "ref: "
+	RefHeads       = "refs/heads/"
 )
 
 var (
