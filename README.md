@@ -11,10 +11,13 @@ I have suffered too, so I had the vision to make it easier for myself and for ot
 ## Features
 
 - **`init`**: Initialize the `.star` repository structure.
-- **`add`**: Stage a specific file or an entire directory (using `.`).
+- **`login`**: Configure author name and email identity.
+- **`remote`**: Show or configure remote repository URL (`star remote <url>`).
+- **`add`**: Stage a specific file or an entire directory (using `.`). Respects `.starignore`.
 - **`commit`**: Record staged changes into a new commit with a message.
+- **`push`**: Push commit history to remote repository.
 - **`log`**: Display commit history.
-- **`status`**: Show currently tracked/staged files.
+- **`status`**: Show branch status with staged, modified, and untracked files.
 - **`branch`**: Create a new branch or list existing branches.
 - **`checkout`**: Switch to a branch or commit hash.
 - **`hash-object`**: Compute the SHA-256 hash of a file and save it to object store.
@@ -50,19 +53,28 @@ To use `star` globally from anywhere in your terminal, move the generated execut
 # 1. Initialize an empty star repository in your current directory
 star init
 
-# 2. Stage a file or stage all files in current directory recursively
+# 2. Configure author name and email identity
+star login "Your Name" "your.email@example.com"
+
+# 3. Configure remote repository URL
+star remote https://github.com/username/repository.git
+
+# 4. Stage a file or stage all files in current directory recursively
 star add .
 
-# 3. Commit your staged changes with a descriptive message
+# 5. Commit your staged changes with a descriptive message
 star commit "Initial commit"
 
-# 4. View your commit history
+# 6. Push commit history to GitHub
+star push
+
+# 7. View your commit history
 star log
 
-# 5. Check currently tracked files
+# 8. Check branch and working tree status
 star status
 
-# 6. Create and switch to a new branch
+# 9. Create and switch to a new branch
 star branch feature-auth
 star checkout feature-auth
 ```

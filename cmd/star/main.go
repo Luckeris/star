@@ -30,10 +30,10 @@ func main() {
 		}
 		fmt.Println("Initialized empty star repository in .star directory")
 
-	case "help":
+	case "help", "--help", "-h":
 		printUsage()
 
-	case "version":
+	case "version", "--version", "-v":
 		fmt.Println(version)
 
 	case "hash-object":
@@ -89,28 +89,37 @@ func main() {
 		}
 
 	case "status":
-		// Display current branch name
-		branches, branchErr := repo.ListBranches()
-		if branchErr == nil {
-			for _, b := range branches {
-				if b.IsCurrent {
-					fmt.Printf("On branch %s\n", b.Name)
-					break
-				}
-			}
-		}
-		tracked, err := repo.Status()
+		details, err := repo.GetStatusDetails()
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			os.Exit(1)
 		}
-		if len(tracked) == 0 {
-			fmt.Println("No files are currently tracked (index is empty).")
+		fmt.Printf("On branch %s\n", details.Branch)
+
+		if len(details.Staged) == 0 && len(details.Modified) == 0 && len(details.Untracked) == 0 {
+			fmt.Println("Working tree clean (nothing to commit).")
 			return
 		}
-		fmt.Println("Tracked files:")
-		for _, path := range tracked {
-			fmt.Printf("  added: %s\n", path)
+
+		if len(details.Staged) > 0 {
+			fmt.Println("\nChanges to be committed (staged):")
+			for _, entry := range details.Staged {
+				fmt.Printf("  added:    %s\n", entry.Path)
+			}
+		}
+
+		if len(details.Modified) > 0 {
+			fmt.Println("\nChanges not staged for commit (modified):")
+			for _, path := range details.Modified {
+				fmt.Printf("  modified: %s\n", path)
+			}
+		}
+
+		if len(details.Untracked) > 0 {
+			fmt.Println("\nUntracked files:")
+			for _, path := range details.Untracked {
+				fmt.Printf("  untracked: %s\n", path)
+			}
 		}
 
 	case "checkout":

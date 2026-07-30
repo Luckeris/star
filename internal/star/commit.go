@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -130,4 +131,90 @@ func (r *Repository) Status() ([]string, error) {
 	}
 
 	return tracked, nil
+}
+
+// GetStatusDetails computes the full status of the repository: current branch, staged files, modified files, and untracked files.
+func (r *Repository) GetStatusDetails() (*StatusDetails, error) {
+	idx, err := r.ReadIndex()
+	if err != nil {
+		return nil, err
+	}
+
+	patterns, err := r.LoadIgnorePatterns()
+	if err != nil {
+		return nil, err
+	}
+
+	currentBranch := "main"
+	branches, err := r.ListBranches()
+	if err == nil {
+		for _, b := range branches {
+			if b.IsCurrent {
+				currentBranch = b.Name
+				break
+			}
+		}
+	}
+
+	stagedMap := make(map[string]IndexEntry, len(idx.Entries))
+	for _, entry := range idx.Entries {
+		stagedMap[entry.Path] = entry
+	}
+
+	details := &StatusDetails{
+		Branch: currentBranch,
+		Staged: idx.Entries,
+	}
+
+	err = filepath.WalkDir(r.RootPath, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		name := d.Name()
+		if name == ".git" || name == DirStar {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		if isPathIgnored(p, patterns) {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		rel, err := filepath.Rel(r.RootPath, p)
+		if err != nil {
+			return nil
+		}
+		relPath := filepath.Clean(rel)
+
+		if entry, isStaged := stagedMap[relPath]; isStaged {
+			info, statErr := os.Stat(p)
+			if statErr == nil {
+				if info.Size() != entry.Size || !info.ModTime().Equal(entry.ModTime) {
+					details.Modified = append(details.Modified, relPath)
+				}
+			}
+		} else {
+			if relPath != FileStarIgnore {
+				details.Untracked = append(details.Untracked, relPath)
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to walk repository for status: %w", err)
+	}
+
+	return details, nil
 }
