@@ -2,6 +2,8 @@
   <img src="installer/assets/logo.png" alt="Star Version Control System" width="220">
 
   # Star ⭐
+
+  [![License: MIT](https://img.shields.io/badge/License-MIT-gold.svg)](https://opensource.org/licenses/MIT)
 </div>
 
 A simpler git-like version control system. Integrated with git, for uploading and pushing to your remote repos.
@@ -103,3 +105,9 @@ star/
 ├── installer/            # Inno Setup Windows installer script & logo assets
 └── build.ps1             # Windows, Linux, & macOS cross-compilation script
 ```
+
+---
+
+## License
+
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
