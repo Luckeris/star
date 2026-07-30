@@ -54,8 +54,10 @@ func NewRepository(rootPath string) *Repository {
 
 // Path returns a path joined relative to the .star directory within the repository root.
 func (r *Repository) Path(elem ...string) string {
-	slice := append([]string{r.RootPath, DirStar}, elem...)
-	return filepath.Join(slice...)
+	parts := make([]string, 0, 2+len(elem))
+	parts = append(parts, r.RootPath, DirStar)
+	parts = append(parts, elem...)
+	return filepath.Join(parts...)
 }
 
 // Init initializes the .star directory structure and default branch reference.
