@@ -70,7 +70,7 @@ func main() {
 			fmt.Printf("Error: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Printf("Created commit %s\n", hash)
+		fmt.Printf("Created commit %s\n", hash[:8])
 
 	case "log":
 		logs, err := repo.GetLog()
@@ -83,7 +83,7 @@ func main() {
 			if l.Commit.AuthorName != "" {
 				fmt.Printf("Author: %s <%s>\n", l.Commit.AuthorName, l.Commit.AuthorEmail)
 			}
-			fmt.Printf("Timestamp: %s\n", l.Commit.Timestamp)
+			fmt.Printf("Timestamp: %s\n", l.Commit.Timestamp.Format("2006-01-02 15:04:05"))
 			fmt.Printf("Message: %s\n", l.Commit.Message)
 			fmt.Println("----------------------------------------")
 		}

@@ -20,7 +20,7 @@ func (r *Repository) HashObject(filePath string) (string, error) {
 	defer fileData.Close()
 	hasher := sha256.New()
 	if _, err := io.Copy(hasher, fileData); err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to hash file %s: %w", filePath, err)
 	}
 	hashHex := hex.EncodeToString(hasher.Sum(nil))
 
