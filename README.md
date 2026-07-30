@@ -22,6 +22,7 @@ I have suffered too, so I had the vision to make it easier for myself and for ot
 - **`checkout`**: Switch to a branch or commit hash.
 - **`hash-object`**: Compute the SHA-256 hash of a file and save it to object store.
 - **`version`**: Display current Star version.
+- **`update`**: Check GitHub for the latest release and auto-update Star executable.
 - **`help`**: Print available commands and usage instructions.
 
 ---

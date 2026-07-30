@@ -25,10 +25,11 @@ func main() {
 	switch command {
 	case "init":
 		if err := repo.Init(); err != nil {
-			fmt.Printf("Error: %v\n", err)
+			fmt.Printf("%s: %v\n", red("Error"), err)
 			os.Exit(1)
 		}
-		fmt.Println("Initialized empty star repository in .star directory")
+		fmt.Println(green("✓ Initialized empty Star repository in .star/ ⭐"))
+		fmt.Println(cyan("Tip: Run 'star login \"Your Name\" \"your.email@example.com\"' to set up your author identity."))
 
 	case "help", "--help", "-h":
 		printUsage()
@@ -55,10 +56,10 @@ func main() {
 		}
 		target := os.Args[2]
 		if err := repo.Add(target); err != nil {
-			fmt.Printf("Error: %v\n", err)
+			fmt.Printf("%s: %v\n", red("Error"), err)
 			os.Exit(1)
 		}
-		fmt.Printf("Added %s to index\n", target)
+		fmt.Printf("%s Staged '%s' for commit\n", green("✓"), target)
 
 	case "commit":
 		if len(os.Args) < 3 {
@@ -67,10 +68,20 @@ func main() {
 		}
 		hash, err := repo.Commit(os.Args[2])
 		if err != nil {
-			fmt.Printf("Error: %v\n", err)
+			fmt.Printf("%s: %v\n", red("Error"), err)
 			os.Exit(1)
 		}
-		fmt.Printf("Created commit %s\n", hash[:8])
+
+		branchName := "main"
+		if branches, err := repo.ListBranches(); err == nil {
+			for _, b := range branches {
+				if b.IsCurrent {
+					branchName = b.Name
+					break
+				}
+			}
+		}
+		fmt.Printf("[%s %s] %s\n", cyan(branchName), yellow(hash[:8]), os.Args[2])
 
 	case "log":
 		logs, err := repo.GetLog()
@@ -91,34 +102,37 @@ func main() {
 	case "status":
 		details, err := repo.GetStatusDetails()
 		if err != nil {
-			fmt.Printf("Error: %v\n", err)
+			fmt.Printf("%s: %v\n", red("Error"), err)
 			os.Exit(1)
 		}
-		fmt.Printf("On branch %s\n", details.Branch)
+		fmt.Printf("On branch %s\n", cyan(details.Branch))
 
 		if len(details.Staged) == 0 && len(details.Modified) == 0 && len(details.Untracked) == 0 {
-			fmt.Println("Working tree clean (nothing to commit).")
+			fmt.Println(green("Nothing to commit, working tree clean ✨"))
 			return
 		}
 
 		if len(details.Staged) > 0 {
-			fmt.Println("\nChanges to be committed (staged):")
+			fmt.Println("\n" + bold("Changes to be committed (staged):"))
+			fmt.Println(cyan("  (use \"star commit <msg>\" to save staged changes)"))
 			for _, entry := range details.Staged {
-				fmt.Printf("  added:    %s\n", entry.Path)
+				fmt.Printf("  %s %s\n", green("staged:  "), entry.Path)
 			}
 		}
 
 		if len(details.Modified) > 0 {
-			fmt.Println("\nChanges not staged for commit (modified):")
+			fmt.Println("\n" + bold("Changes not staged for commit (modified):"))
+			fmt.Println(cyan("  (use \"star add <file>...\" to update staged changes)"))
 			for _, path := range details.Modified {
-				fmt.Printf("  modified: %s\n", path)
+				fmt.Printf("  %s %s\n", red("modified:"), path)
 			}
 		}
 
 		if len(details.Untracked) > 0 {
-			fmt.Println("\nUntracked files:")
+			fmt.Println("\n" + bold("Untracked files:"))
+			fmt.Println(cyan("  (use \"star add <file>...\" to include in commit)"))
 			for _, path := range details.Untracked {
-				fmt.Printf("  untracked: %s\n", path)
+				fmt.Printf("  %s%s\n", yellow("untracked: "), path)
 			}
 		}
 
@@ -185,13 +199,55 @@ func main() {
 	case "login", "config":
 		handleLogin(repo)
 
-	case "push":
-		fmt.Println("Pushing repository history to remote...")
-		if err := repo.Push(); err != nil {
-			fmt.Printf("Error during push: %v\n", err)
+	case "diff":
+		diffs, err := repo.Diff()
+		if err != nil {
+			fmt.Printf("%s: %v\n", red("Error"), err)
 			os.Exit(1)
 		}
-		fmt.Println("✓ Successfully pushed to remote repository!")
+		if len(diffs) == 0 {
+			fmt.Println("No modifications detected.")
+			return
+		}
+		for _, diffFile := range diffs {
+			fmt.Printf("%s %s\n", bold("diff --star"), cyan(diffFile.Path))
+			for _, hunk := range diffFile.Hunks {
+				if strings.HasPrefix(hunk, "+") {
+					fmt.Println(green(hunk))
+				} else if strings.HasPrefix(hunk, "-") {
+					fmt.Println(red(hunk))
+				} else {
+					fmt.Println(hunk)
+				}
+			}
+		}
+
+	case "push":
+		remoteURL, _ := repo.GetRemote()
+		branchName := "main"
+		if branches, err := repo.ListBranches(); err == nil {
+			for _, b := range branches {
+				if b.IsCurrent {
+					branchName = b.Name
+					break
+				}
+			}
+		}
+		fmt.Printf("Pushing branch '%s' to %s (%s)...\n", cyan(branchName), bold("origin"), yellow(remoteURL))
+		if err := repo.Push(); err != nil {
+			fmt.Printf("%s: %v\n", red("Error during push"), err)
+			os.Exit(1)
+		}
+		fmt.Println(green("✓ Successfully pushed to remote repository!"))
+
+	case "update", "self-update":
+		fmt.Println("Checking for updates on GitHub...")
+		msg, err := star.SelfUpdate(version)
+		if err != nil {
+			fmt.Printf("%s: %v\n", red("Update failed"), err)
+			os.Exit(1)
+		}
+		fmt.Println(green(msg))
 
 	default:
 		fmt.Println("Unknown command:", command)
@@ -248,20 +304,31 @@ func handleLogin(repo *star.Repository) {
 }
 
 func printUsage() {
-	fmt.Println("Usage: star <command> [arguments]")
+	fmt.Println(bold(yellow("⭐ STAR Version Control System v0.1.0")))
+	fmt.Println(cyan("A simpler, beginner-friendly VCS integrated with Git & GitHub."))
 	fmt.Println()
-	fmt.Println("Available commands:")
-	fmt.Println("  init          Initialize a new star repository")
-	fmt.Println("  add <path>    Stage a file or directory for commit")
-	fmt.Println("  commit <msg>  Record staged changes into a new commit")
-	fmt.Println("  log           Display commit history")
-	fmt.Println("  status        Show tracked files and current branch")
-	fmt.Println("  branch [name] List branches or create a new one")
-	fmt.Println("  checkout <ref> Switch to a branch or commit")
-	fmt.Println("  remote [url]  Show or set remote repository URL")
-	fmt.Println("  push          Push commit history to remote repository")
-	fmt.Println("  login         Configure author name and email")
-	fmt.Println("  hash-object   Compute SHA-256 hash of a file")
-	fmt.Println("  version       Display current Star version")
-	fmt.Println("  help          Show this help message")
+	fmt.Println(bold("Usage:"))
+	fmt.Println("  star <command> [arguments]")
+	fmt.Println()
+	fmt.Println(bold("🚀 Getting Started:"))
+	fmt.Println("  " + yellow("init") + "          Initialize a new Star repository in current folder")
+	fmt.Println("  " + yellow("login") + "         Configure your author name and email identity")
+	fmt.Println("  " + yellow("remote") + " [url]  Show or set remote repository URL (GitHub)")
+	fmt.Println()
+	fmt.Println(bold("📝 Daily Workflow:"))
+	fmt.Println("  " + yellow("add") + " <path>    Stage a file or directory for commit")
+	fmt.Println("  " + yellow("commit") + " <msg>  Record staged changes into a new commit")
+	fmt.Println("  " + yellow("status") + "        Show branch status (staged, modified, untracked)")
+	fmt.Println("  " + yellow("diff") + "          Show line-by-line file differences")
+	fmt.Println("  " + yellow("push") + "          Push commit history to GitHub remote repository")
+	fmt.Println("  " + yellow("log") + "           Display detailed commit history")
+	fmt.Println()
+	fmt.Println(bold("🌿 Branching & History:"))
+	fmt.Println("  " + yellow("branch") + " [name] List branches or create a new branch")
+	fmt.Println("  " + yellow("checkout") + " <ref> Switch to a branch or commit hash")
+	fmt.Println()
+	fmt.Println(bold("🛠️ Utility:"))
+	fmt.Println("  " + yellow("update") + "        Check GitHub for latest release and auto-update Star")
+	fmt.Println("  " + yellow("version") + "       Display Star version")
+	fmt.Println("  " + yellow("help") + "          Show this help message")
 }
