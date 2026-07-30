@@ -66,3 +66,33 @@ func TestRemote(t *testing.T) {
 		t.Fatalf("expected remote %s, got %s", testURL, url)
 	}
 }
+
+func TestUserConfig(t *testing.T) {
+	tempDir := t.TempDir()
+	repo := star.NewRepository(tempDir)
+
+	if err := repo.Init(); err != nil {
+		t.Fatalf("failed to init repo: %v", err)
+	}
+
+	// GetUserConfig before setting should return error
+	_, _, err := repo.GetUserConfig()
+	if err == nil {
+		t.Fatal("expected error when identity not configured, got nil")
+	}
+
+	name := "Jan Novak"
+	email := "jan@example.com"
+	if err := repo.SetUserConfig(name, email); err != nil {
+		t.Fatalf("failed to set user config: %v", err)
+	}
+
+	gotName, gotEmail, err := repo.GetUserConfig()
+	if err != nil {
+		t.Fatalf("failed to get user config: %v", err)
+	}
+
+	if gotName != name || gotEmail != email {
+		t.Fatalf("expected (%s, %s), got (%s, %s)", name, email, gotName, gotEmail)
+	}
+}

@@ -31,11 +31,15 @@ func (r *Repository) Commit(message string) (string, error) {
 		return "", err
 	}
 
+	cfg, _ := r.ReadConfig()
+
 	newCommit := Commit{
-		Message:   message,
-		Timestamp: time.Now().UTC(),
-		Files:     idx.Entries,
-		Parent:    parentHash,
+		Message:     message,
+		AuthorName:  cfg.UserName,
+		AuthorEmail: cfg.UserEmail,
+		Timestamp:   time.Now().UTC(),
+		Files:       idx.Entries,
+		Parent:      parentHash,
 	}
 
 	commitData, err := json.MarshalIndent(newCommit, "", "  ")

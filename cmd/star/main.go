@@ -2,8 +2,11 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
+	"strings"
 
 	"github.com/Luckeris/star/internal/star"
 )
@@ -153,6 +156,9 @@ func main() {
 			fmt.Printf("Set remote URL to '%s'\n", targetURL)
 		}
 
+	case "login", "config":
+		handleLogin(repo)
+
 	default:
 		fmt.Println("Unknown command:", command)
 		printUsage()
@@ -160,7 +166,54 @@ func main() {
 	}
 }
 
+func handleLogin(repo *star.Repository) {
+	var name, email string
+
+	if len(os.Args) >= 4 {
+		name = os.Args[2]
+		email = os.Args[3]
+	} else {
+		reader := bufio.NewReader(os.Stdin)
+		fmt.Print("Enter your author name (e.g., John Doe): ")
+		inputName, _ := reader.ReadString('\n')
+		name = strings.TrimSpace(inputName)
+
+		fmt.Print("Enter your author email (e.g., john@example.com): ")
+		inputEmail, _ := reader.ReadString('\n')
+		email = strings.TrimSpace(inputEmail)
+	}
+
+	if name == "" || email == "" {
+		fmt.Println("Error: Name and email cannot be empty.")
+		os.Exit(1)
+	}
+
+	// 1. Save identity in Star config (.star/config.json)
+	if err := repo.SetUserConfig(name, email); err != nil {
+		fmt.Printf("Error saving Star configuration: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("✓ Saved author identity to Star: %s <%s>\n", name, email)
+
+	// 2. Pass identity to underlying system Git
+	gitCmdName := exec.Command("git", "config", "user.name", name)
+	if err := gitCmdName.Run(); err != nil {
+		fmt.Printf(" Warning: Failed to set Git user.name (%v). Is Git installed?\n", err)
+	} else {
+		fmt.Println("✓ Synced user.name to system Git")
+	}
+
+	gitCmdEmail := exec.Command("git", "config", "user.email", email)
+	if err := gitCmdEmail.Run(); err != nil {
+		fmt.Printf(" Warning: Failed to set Git user.email (%v). Is Git installed?\n", err)
+	} else {
+		fmt.Println("✓ Synced user.email to system Git")
+	}
+
+	fmt.Println("\nSuccess! Your identity is configured for commits and push.")
+}
+
 func printUsage() {
 	fmt.Println("Usage: star <command> [arguments]")
-	fmt.Println("Available commands: help, version, init, hash-object, add, commit, log, status, checkout, branch, remote")
+	fmt.Println("Available commands: help, version, init, hash-object, add, commit, log, status, checkout, branch, remote, login")
 }

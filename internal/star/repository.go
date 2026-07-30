@@ -125,14 +125,27 @@ func (r *Repository) ResolveHead() (commitHash string, refPath string, err error
 	return headContent, "", nil
 }
 
-// SetRemote saves the remote repository URL to .star/config.json.
-func (r *Repository) SetRemote(remoteURL string) error {
-	remoteURL = strings.TrimSpace(remoteURL)
-	if remoteURL == "" {
-		return errors.New("remote URL cannot be empty")
+// ReadConfig reads and parses .star/config.json. If it does not exist, an empty Config struct is returned.
+func (r *Repository) ReadConfig() (*Config, error) {
+	configPath := r.Path(FileConfig)
+	cfgData, err := os.ReadFile(configPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &Config{}, nil
+		}
+		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
 
-	cfg := Config{RemoteURL: remoteURL}
+	var cfg Config
+	if err := json.Unmarshal(cfgData, &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse config file: %w", err)
+	}
+
+	return &cfg, nil
+}
+
+// WriteConfig saves the Config struct into .star/config.json.
+func (r *Repository) WriteConfig(cfg *Config) error {
 	cfgData, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
@@ -146,20 +159,27 @@ func (r *Repository) SetRemote(remoteURL string) error {
 	return nil
 }
 
-// GetRemote reads the configured remote repository URL from .star/config.json.
-func (r *Repository) GetRemote() (string, error) {
-	configPath := r.Path(FileConfig)
-	cfgData, err := os.ReadFile(configPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return "", ErrNoRemote
-		}
-		return "", fmt.Errorf("failed to read config file: %w", err)
+// SetRemote saves the remote repository URL to .star/config.json.
+func (r *Repository) SetRemote(remoteURL string) error {
+	remoteURL = strings.TrimSpace(remoteURL)
+	if remoteURL == "" {
+		return errors.New("remote URL cannot be empty")
 	}
 
-	var cfg Config
-	if err := json.Unmarshal(cfgData, &cfg); err != nil {
-		return "", fmt.Errorf("failed to parse config file: %w", err)
+	cfg, err := r.ReadConfig()
+	if err != nil {
+		return err
+	}
+
+	cfg.RemoteURL = remoteURL
+	return r.WriteConfig(cfg)
+}
+
+// GetRemote reads the configured remote repository URL from .star/config.json.
+func (r *Repository) GetRemote() (string, error) {
+	cfg, err := r.ReadConfig()
+	if err != nil {
+		return "", err
 	}
 
 	if cfg.RemoteURL == "" {
@@ -167,4 +187,36 @@ func (r *Repository) GetRemote() (string, error) {
 	}
 
 	return cfg.RemoteURL, nil
+}
+
+// SetUserConfig sets the user name and email in .star/config.json.
+func (r *Repository) SetUserConfig(name, email string) error {
+	name = strings.TrimSpace(name)
+	email = strings.TrimSpace(email)
+	if name == "" || email == "" {
+		return errors.New("user name and email cannot be empty")
+	}
+
+	cfg, err := r.ReadConfig()
+	if err != nil {
+		return err
+	}
+
+	cfg.UserName = name
+	cfg.UserEmail = email
+	return r.WriteConfig(cfg)
+}
+
+// GetUserConfig reads the configured user name and email from .star/config.json.
+func (r *Repository) GetUserConfig() (name string, email string, err error) {
+	cfg, err := r.ReadConfig()
+	if err != nil {
+		return "", "", err
+	}
+
+	if cfg.UserName == "" || cfg.UserEmail == "" {
+		return "", "", errors.New("user identity not configured (run 'star login' or 'star config')")
+	}
+
+	return cfg.UserName, cfg.UserEmail, nil
 }

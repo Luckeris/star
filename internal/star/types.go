@@ -19,10 +19,12 @@ type Index struct {
 
 // Commit represents a point-in-time snapshot of repository state.
 type Commit struct {
-	Message   string       `json:"message"`
-	Timestamp time.Time    `json:"timestamp"`
-	Files     []IndexEntry `json:"files"`
-	Parent    string       `json:"parent"`
+	Message     string       `json:"message"`
+	AuthorName  string       `json:"author_name"`
+	AuthorEmail string       `json:"author_email"`
+	Timestamp   time.Time    `json:"timestamp"`
+	Files       []IndexEntry `json:"files"`
+	Parent      string       `json:"parent"`
 }
 
 // CommitWithHash combines a commit hash with its parsed commit data.
@@ -37,7 +39,9 @@ type BranchInfo struct {
 	IsCurrent bool
 }
 
-// Config holds repository configuration options such as remote URL.
+// Config holds repository configuration options such as remote URL and author identity.
 type Config struct {
-	RemoteURL string `json:"remote_url"`
+	RemoteURL string `json:"remote_url,omitempty"`
+	UserName  string `json:"user_name,omitempty"`
+	UserEmail string `json:"user_email,omitempty"`
 }
