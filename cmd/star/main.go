@@ -80,12 +80,25 @@ func main() {
 		}
 		for _, l := range logs {
 			fmt.Printf("Commit: %s\n", l.Hash)
+			if l.Commit.AuthorName != "" {
+				fmt.Printf("Author: %s <%s>\n", l.Commit.AuthorName, l.Commit.AuthorEmail)
+			}
 			fmt.Printf("Timestamp: %s\n", l.Commit.Timestamp)
 			fmt.Printf("Message: %s\n", l.Commit.Message)
 			fmt.Println("----------------------------------------")
 		}
 
 	case "status":
+		// Display current branch name
+		branches, branchErr := repo.ListBranches()
+		if branchErr == nil {
+			for _, b := range branches {
+				if b.IsCurrent {
+					fmt.Printf("On branch %s\n", b.Name)
+					break
+				}
+			}
+		}
 		tracked, err := repo.Status()
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
@@ -146,7 +159,11 @@ func main() {
 			fmt.Printf("Remote URL: %s\n", url)
 		} else {
 			targetURL := os.Args[2]
-			if targetURL == "add" && len(os.Args) >= 4 {
+			if targetURL == "add" {
+				if len(os.Args) < 4 {
+					fmt.Println("Usage: star remote add <url>")
+					os.Exit(1)
+				}
 				targetURL = os.Args[3]
 			}
 			if err := repo.SetRemote(targetURL); err != nil {
@@ -215,5 +232,18 @@ func handleLogin(repo *star.Repository) {
 
 func printUsage() {
 	fmt.Println("Usage: star <command> [arguments]")
-	fmt.Println("Available commands: help, version, init, hash-object, add, commit, log, status, checkout, branch, remote, login")
+	fmt.Println()
+	fmt.Println("Available commands:")
+	fmt.Println("  init          Initialize a new star repository")
+	fmt.Println("  add <path>    Stage a file or directory for commit")
+	fmt.Println("  commit <msg>  Record staged changes into a new commit")
+	fmt.Println("  log           Display commit history")
+	fmt.Println("  status        Show tracked files and current branch")
+	fmt.Println("  branch [name] List branches or create a new one")
+	fmt.Println("  checkout <ref> Switch to a branch or commit")
+	fmt.Println("  remote [url]  Show or set remote repository URL")
+	fmt.Println("  login         Configure author name and email")
+	fmt.Println("  hash-object   Compute SHA-256 hash of a file")
+	fmt.Println("  version       Display current Star version")
+	fmt.Println("  help          Show this help message")
 }

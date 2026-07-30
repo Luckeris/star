@@ -86,8 +86,15 @@ func (r *Repository) GetLog() ([]CommitWithHash, error) {
 		return nil, ErrNoCommits
 	}
 
+	visited := make(map[string]bool)
 	var logs []CommitWithHash
 	for currentHash != "" {
+		// Cycle detection: stop if we have already seen this commit hash
+		if visited[currentHash] {
+			break
+		}
+		visited[currentHash] = true
+
 		commitPath := r.Path(DirCommits, currentHash+".json")
 		commitFile, err := os.ReadFile(commitPath)
 		if err != nil {

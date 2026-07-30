@@ -17,11 +17,23 @@ var (
 	ErrCommitNotFound = errors.New("commit or branch not found")
 )
 
+// validateBranchName checks that a branch name does not contain path traversal characters.
+func validateBranchName(name string) error {
+	if strings.Contains(name, "..") || strings.Contains(name, "/") || strings.Contains(name, "\\") || strings.Contains(name, " ") {
+		return fmt.Errorf("invalid branch name '%s': must not contain '..', '/', '\\' or spaces", name)
+	}
+	return nil
+}
+
 // CreateBranch creates a new branch pointing to the current HEAD commit.
 func (r *Repository) CreateBranch(name string) error {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return errors.New("branch name cannot be empty")
+	}
+
+	if err := validateBranchName(name); err != nil {
+		return err
 	}
 
 	commitHash, _, err := r.ResolveHead()
@@ -86,6 +98,14 @@ func (r *Repository) Checkout(target string) error {
 	target = strings.TrimSpace(target)
 	if target == "" {
 		return errors.New("checkout target cannot be empty")
+	}
+
+	if err := validateBranchName(target); err != nil {
+		// Not a valid branch name, treat as a commit hash instead
+		commitPath := r.Path(DirCommits, target+".json")
+		if _, statErr := os.Stat(commitPath); statErr != nil {
+			return fmt.Errorf("%w: %s", ErrCommitNotFound, target)
+		}
 	}
 
 	var commitHash string

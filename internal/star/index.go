@@ -26,6 +26,11 @@ func (r *Repository) HashObject(filePath string) (string, error) {
 
 	objectPath := r.Path(DirObjects, hashHex)
 
+	// Skip writing if object with this hash already exists (content-addressable)
+	if _, err := os.Stat(objectPath); err == nil {
+		return hashHex, nil
+	}
+
 	if _, err := fileData.Seek(0, io.SeekStart); err != nil {
 		return "", fmt.Errorf("failed to seek file: %w", err)
 	}
@@ -111,6 +116,11 @@ func (r *Repository) Add(targetPath string) error {
 	} else {
 		pathsToAdd = append(pathsToAdd, targetPath)
 	}
+	// Build a lookup map for O(1) entry search instead of O(n) linear scan
+	entryIndex := make(map[string]int, len(idx.Entries))
+	for i, entry := range idx.Entries {
+		entryIndex[entry.Path] = i
+	}
 
 	for _, p := range pathsToAdd {
 		relPath := filepath.Clean(p)
@@ -129,18 +139,12 @@ func (r *Repository) Add(targetPath string) error {
 			return fmt.Errorf("failed to stat file %s: %w", relPath, err)
 		}
 
-		found := false
-		for i, entry := range idx.Entries {
-			if entry.Path == relPath {
-				idx.Entries[i].Hash = hashHex
-				idx.Entries[i].Size = fileInfo.Size()
-				idx.Entries[i].ModTime = fileInfo.ModTime()
-				found = true
-				break
-			}
-		}
-
-		if !found {
+		if i, exists := entryIndex[relPath]; exists {
+			idx.Entries[i].Hash = hashHex
+			idx.Entries[i].Size = fileInfo.Size()
+			idx.Entries[i].ModTime = fileInfo.ModTime()
+		} else {
+			entryIndex[relPath] = len(idx.Entries)
 			idx.Entries = append(idx.Entries, IndexEntry{
 				Path:    relPath,
 				Hash:    hashHex,
