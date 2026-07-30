@@ -45,3 +45,11 @@ type Config struct {
 	UserName  string `json:"user_name,omitempty"`
 	UserEmail string `json:"user_email,omitempty"`
 }
+
+// StatusDetails encapsulates staged, modified, and untracked repository file states.
+type StatusDetails struct {
+	Branch    string
+	Staged    []IndexEntry
+	Modified  []string
+	Untracked []string
+}

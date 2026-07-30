@@ -176,6 +176,14 @@ func main() {
 	case "login", "config":
 		handleLogin(repo)
 
+	case "push":
+		fmt.Println("Pushing repository history to remote...")
+		if err := repo.Push(); err != nil {
+			fmt.Printf("Error during push: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("✓ Successfully pushed to remote repository!")
+
 	default:
 		fmt.Println("Unknown command:", command)
 		printUsage()
@@ -242,6 +250,7 @@ func printUsage() {
 	fmt.Println("  branch [name] List branches or create a new one")
 	fmt.Println("  checkout <ref> Switch to a branch or commit")
 	fmt.Println("  remote [url]  Show or set remote repository URL")
+	fmt.Println("  push          Push commit history to remote repository")
 	fmt.Println("  login         Configure author name and email")
 	fmt.Println("  hash-object   Compute SHA-256 hash of a file")
 	fmt.Println("  version       Display current Star version")
