@@ -1,4 +1,8 @@
-# Star ⭐
+<div align="center">
+  <img src="installer/assets/logo.png" alt="Star Version Control System" width="220">
+
+  # Star ⭐
+</div>
 
 A simpler git-like version control system. Integrated with git, for uploading and pushing to your remote repos.
 
@@ -11,18 +15,19 @@ I have suffered too, so I had the vision to make it easier for myself and for ot
 ## Features
 
 - **`init`**: Initialize the `.star` repository structure.
-- **`login`**: Configure author name and email identity.
-- **`remote`**: Show or configure remote repository URL (`star remote <url>`).
-- **`add`**: Stage a specific file or an entire directory (using `.`). Respects `.starignore`.
-- **`commit`**: Record staged changes into a new commit with a message.
-- **`push`**: Push commit history to remote repository.
-- **`log`**: Display commit history.
+- **`login`**: Configure author name and email identity (`star login "Name" "email"`).
+- **`remote`**: Show or configure remote repository URL (`star remote <url>`). Supports HTTPS & SSH.
+- **`add`**: Stage a specific file or all files (`star add .` / `star add -A`). Respects `.starignore`.
+- **`commit`**: Record staged changes into a new commit (`star commit "msg"` or `star commit -m "msg"`).
+- **`push`**: Push commit history to remote repository (`star push` or `star push --force`).
+- **`pull`**: Pull remote changes from GitHub and sync into local index (`star pull`).
+- **`diff`**: View line-by-line colored diff of modified files (`star diff`).
+- **`log`**: Display commit history (`star log` or `star log -n <limit>`).
 - **`status`**: Show branch status with staged, modified, and untracked files.
-- **`branch`**: Create a new branch or list existing branches.
-- **`checkout`**: Switch to a branch or commit hash.
-- **`hash-object`**: Compute the SHA-256 hash of a file and save it to object store.
-- **`version`**: Display current Star version.
+- **`branch`**: Create a new branch, list branches (`star branch`), or delete a branch (`star branch -d <name>`).
+- **`checkout`**: Switch branch/commit (`star checkout <name>`) or create and switch in one step (`star checkout -b <name>`).
 - **`update`**: Check GitHub for the latest release and auto-update Star executable.
+- **`version`**: Display current Star version.
 - **`help`**: Print available commands and usage instructions.
 
 ---
@@ -32,7 +37,7 @@ I have suffered too, so I had the vision to make it easier for myself and for ot
 To build the project from source, ensure you have [Go](https://go.dev/) installed on your system.
 
 1. Clone or navigate to the root directory of the repository.
-2. Compile the binary using the Go compiler:
+2. Compile the binary using the Go compiler (or run `.\build.ps1`):
 
 ```bash
 go build -o star ./cmd/star
@@ -44,7 +49,7 @@ To run unit tests across all packages:
 go test ./...
 ```
 
-To use `star` globally from anywhere in your terminal, move the generated executable to a directory included in your system's `PATH` variable (e.g., `/usr/local/bin` on Linux/macOS).
+For Windows users, you can also use the graphical installer (`star-setup.exe`) which configures `PATH` automatically.
 
 ---
 
@@ -64,20 +69,25 @@ star remote https://github.com/username/repository.git
 star add .
 
 # 5. Commit your staged changes with a descriptive message
-star commit "Initial commit"
+star commit -m "Initial commit"
 
 # 6. Push commit history to GitHub
 star push
 
-# 7. View your commit history
-star log
+# 7. Pull remote changes if remote contains new commits
+star pull
 
-# 8. Check branch and working tree status
+# 8. View line-by-line diffs of modified files
+star diff
+
+# 9. View your commit history
+star log -n 5
+
+# 10. Check branch and working tree status
 star status
 
-# 9. Create and switch to a new branch
-star branch feature-auth
-star checkout feature-auth
+# 11. Create and switch to a new branch in one step
+star checkout -b feature-auth
 ```
 
 ---
@@ -87,7 +97,9 @@ star checkout feature-auth
 ```text
 star/
 ├── cmd/
-│   └── star/             # Main executable CLI entrypoint
-└── internal/
-    └── star/             # Core VCS domain engine & unit tests
+│   └── star/             # Main CLI entrypoint & error parser
+├── internal/
+│   └── star/             # Core VCS domain engine, diff, push/pull & unit tests
+├── installer/            # Inno Setup Windows installer script & logo assets
+└── build.ps1             # Windows, Linux, & macOS cross-compilation script
 ```

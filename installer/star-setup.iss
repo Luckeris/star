@@ -1,6 +1,6 @@
 ; Inno Setup Script for Star ⭐ Version Control System
 #define MyAppName "Star"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "1.0.0"
 #define MyAppPublisher "Star Project"
 #define MyAppURL "https://github.com/Luckeris/star"
 #define MyAppExeName "star.exe"
@@ -21,6 +21,10 @@ OutputBaseFilename=star-setup
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
+WizardImageFile=assets\wizard_banner.bmp
+WizardSmallImageFile=assets\wizard_header.bmp
+SetupIconFile=assets\star.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
 ChangesEnvironment=yes
 
 [Languages]
@@ -35,6 +39,50 @@ Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; \
     ValueData: "{olddata};{app}"; Check: NeedsAddPath('{app}')
 
 [Code]
+// DWM API Constants for Windows 10/11 Immersive Dark Mode
+const
+  DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1 = 19;
+  DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+
+function DwmSetWindowAttribute(
+  hwnd: HWND;
+  dwAttribute: DWORD;
+  var pvAttribute: DWORD;
+  cbAttribute: DWORD
+): HRESULT;
+external 'DwmSetWindowAttribute@dwmapi.dll stdcall delayload';
+
+// Helper to check if Windows system theme is set to Dark Mode
+function IsWindowsDarkModeEnabled(): Boolean;
+var
+  LightMode: DWORD;
+begin
+  Result := False;
+  if RegQueryDWordValue(HKEY_CURRENT_USER, 'Software\Microsoft\Windows\CurrentVersion\Themes\Personalize', 'AppsUseLightTheme', LightMode) then
+  begin
+    Result := (LightMode = 0);
+  end;
+end;
+
+procedure ApplyTheme(hWnd: HWND);
+var
+  DarkMode: DWORD;
+begin
+  if IsWindowsDarkModeEnabled() then
+  begin
+    DarkMode := 1;
+    if DwmSetWindowAttribute(hWnd, DWMWA_USE_IMMERSIVE_DARK_MODE, DarkMode, SizeOf(DarkMode)) <> 0 then
+    begin
+      DwmSetWindowAttribute(hWnd, DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1, DarkMode, SizeOf(DarkMode));
+    end;
+  end;
+end;
+
+procedure InitializeWizard();
+begin
+  ApplyTheme(WizardForm.Handle);
+end;
+
 // Helper function to check if path is already present in User PATH
 function NeedsAddPath(ParamPath: string): boolean;
 var

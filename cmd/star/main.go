@@ -11,7 +11,7 @@ import (
 	"github.com/Luckeris/star/internal/star"
 )
 
-const version = "star v0.1.0"
+const version = "star v1.0.0"
 
 func main() {
 	if len(os.Args) < 2 {

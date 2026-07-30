@@ -161,6 +161,20 @@ func (r *Repository) GetStatusDetails() (*StatusDetails, error) {
 		stagedMap[entry.Path] = entry
 	}
 
+	// Load HEAD commit files
+	headFilesMap := make(map[string]IndexEntry)
+	if currentHash, _, err := r.ResolveHead(); err == nil && currentHash != "" {
+		commitPath := r.Path(DirCommits, currentHash+".json")
+		if commitFile, err := os.ReadFile(commitPath); err == nil {
+			var headCommit Commit
+			if err := json.Unmarshal(commitFile, &headCommit); err == nil {
+				for _, f := range headCommit.Files {
+					headFilesMap[f.Path] = f
+				}
+			}
+		}
+	}
+
 	details := &StatusDetails{
 		Branch: currentBranch,
 		Staged: idx.Entries,
@@ -198,8 +212,23 @@ func (r *Repository) GetStatusDetails() (*StatusDetails, error) {
 		if entry, isStaged := stagedMap[relPath]; isStaged {
 			info, statErr := os.Stat(p)
 			if statErr == nil {
-				if info.Size() != entry.Size || !info.ModTime().Equal(entry.ModTime) {
+				if info.Size() != entry.Size {
 					details.Modified = append(details.Modified, relPath)
+				} else if !info.ModTime().Equal(entry.ModTime) {
+					if currentHash, hashErr := r.HashObject(relPath); hashErr == nil && currentHash != entry.Hash {
+						details.Modified = append(details.Modified, relPath)
+					}
+				}
+			}
+		} else if headEntry, inHead := headFilesMap[relPath]; inHead {
+			info, statErr := os.Stat(p)
+			if statErr == nil {
+				if info.Size() != headEntry.Size {
+					details.Modified = append(details.Modified, relPath)
+				} else if !info.ModTime().Equal(headEntry.ModTime) {
+					if currentHash, hashErr := r.HashObject(relPath); hashErr == nil && currentHash != headEntry.Hash {
+						details.Modified = append(details.Modified, relPath)
+					}
 				}
 			}
 		} else {

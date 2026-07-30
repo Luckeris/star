@@ -182,6 +182,20 @@ func (r *Repository) Add(targetPath string) ([]string, error) {
 		entryIndex[entry.Path] = i
 	}
 
+	// Load HEAD commit files to skip unchanged files
+	headFilesMap := make(map[string]string)
+	if currentHash, _, err := r.ResolveHead(); err == nil && currentHash != "" {
+		commitPath := r.Path(DirCommits, currentHash+".json")
+		if commitFile, err := os.ReadFile(commitPath); err == nil {
+			var headCommit Commit
+			if err := json.Unmarshal(commitFile, &headCommit); err == nil {
+				for _, f := range headCommit.Files {
+					headFilesMap[f.Path] = f.Hash
+				}
+			}
+		}
+	}
+
 	var addedPaths []string
 	for _, p := range pathsToAdd {
 		rel, err := filepath.Rel(r.RootPath, p)
@@ -197,6 +211,11 @@ func (r *Repository) Add(targetPath string) ([]string, error) {
 		hashHex, err := r.HashObject(relPath)
 		if err != nil {
 			return nil, err
+		}
+
+		// Skip staging if file is already committed in HEAD and content hash has not changed
+		if headHash, inHead := headFilesMap[relPath]; inHead && headHash == hashHex {
+			continue
 		}
 
 		fileInfo, err := os.Stat(relPath)
