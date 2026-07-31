@@ -1,7 +1,7 @@
 <div align="center">
   <img src="installer/assets/logo.png" alt="Star Version Control System" width="220">
 
-# Star ⭐
+# Star 
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-gold.svg)](https://opensource.org/licenses/MIT)
 
@@ -37,10 +37,10 @@ I have suffered too, so I had the vision to make it easier for myself and for ot
 
 ## Build & Installation
 
-### 🪟 Windows Installation
+###  Windows Installation
 Download and run `star-setup.exe` from the [Latest Release](https://github.com/Luckeris/star/releases). The setup wizard automatically configures your system `PATH` environment variable.
 
-### 🐧 Linux & 🍎 macOS Installation
+###  Linux &  macOS Installation
 1. Download the pre-compiled binary (`star-linux` or `star-darwin`) from the [Latest Release](https://github.com/Luckeris/star/releases).
 2. Make the binary executable:
    ```bash
@@ -55,7 +55,7 @@ Download and run `star-setup.exe` from the [Latest Release](https://github.com/L
    star version
    ```
 
-### 🛠️ Building from Source
+###  Building from Source
 Ensure you have [Go 1.20+](https://go.dev/) installed on your system.
 
 ```bash
