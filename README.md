@@ -1,9 +1,10 @@
 <div align="center">
   <img src="installer/assets/logo.png" alt="Star Version Control System" width="220">
 
-  # Star ⭐
+# Star ⭐
 
-  [![License: MIT](https://img.shields.io/badge/License-MIT-gold.svg)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/License-MIT-gold.svg)](https://opensource.org/licenses/MIT)
+
 </div>
 
 A simpler git-like version control system. Integrated with git, for uploading and pushing to your remote repos.
@@ -36,22 +37,38 @@ I have suffered too, so I had the vision to make it easier for myself and for ot
 
 ## Build & Installation
 
-To build the project from source, ensure you have [Go](https://go.dev/) installed on your system.
+### 🪟 Windows Installation
+Download and run `star-setup.exe` from the [Latest Release](https://github.com/Luckeris/star/releases). The setup wizard automatically configures your system `PATH` environment variable.
 
-1. Clone or navigate to the root directory of the repository.
-2. Compile the binary using the Go compiler (or run `.\build.ps1`):
+### 🐧 Linux & 🍎 macOS Installation
+1. Download the pre-compiled binary (`star-linux` or `star-darwin`) from the [Latest Release](https://github.com/Luckeris/star/releases).
+2. Make the binary executable:
+   ```bash
+   chmod +x star-linux
+   ```
+3. Move the binary to `/usr/local/bin` (or any directory in your `$PATH`) so it can be run from anywhere:
+   ```bash
+   sudo mv star-linux /usr/local/bin/star
+   ```
+4. Verify the installation:
+   ```bash
+   star version
+   ```
+
+### 🛠️ Building from Source
+Ensure you have [Go 1.20+](https://go.dev/) installed on your system.
 
 ```bash
+# Clone the repository
+git clone https://github.com/Luckeris/star.git
+cd star
+
+# Compile binary for your platform (or run .\build.ps1)
 go build -o star ./cmd/star
-```
 
-To run unit tests across all packages:
-
-```bash
+# Run unit tests across all packages
 go test ./...
 ```
-
-For Windows users, you can also use the graphical installer (`star-setup.exe`) which configures `PATH` automatically.
 
 ---
 
